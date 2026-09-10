@@ -39,7 +39,7 @@
       padding-bottom:calc(78px + env(safe-area-inset-bottom));
     }
     button,input,textarea,select{font:inherit}
-    button{cursor:pointer}
+    button{cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
     .app{
       width:min(100%,560px);
       margin:0 auto;
@@ -119,6 +119,9 @@
       padding:18px;
     }
     .stamp-grid{
+      touch-action:manipulation;
+      -webkit-user-select:none;
+      user-select:none;
       display:grid;
       grid-template-columns:repeat(3,minmax(0,1fr));
       gap:18px 10px;
@@ -127,11 +130,17 @@
       align-items:start;
     }
     .stamp-wrap{
+      touch-action:manipulation;
+      -webkit-user-select:none;
+      user-select:none;
       width:100%;
       text-align:center;
       user-select:none;
     }
     .stamp{
+      touch-action:manipulation;
+      -webkit-user-select:none;
+      user-select:none;
       width:min(25vw,104px);
       max-width:104px;
       aspect-ratio:1;
@@ -420,18 +429,55 @@
       gap:10px;border:1px solid var(--line);border-radius:14px;padding:11px 12px;
     }
     .toggle-row input{width:22px;height:22px}
-    .image-preview{
+    .image-gallery{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:10px;
+    }
+    .image-thumb{
+      width:76px;
+      height:76px;
+      border-radius:50%;
+      position:relative;
+      overflow:visible;
+      flex:0 0 auto;
+    }
+    .image-thumb img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      border-radius:50%;
+      display:block;
+      border:1px solid var(--line);
+      background:#faf7f1;
+    }
+    .image-remove{
+      position:absolute;
+      right:-5px;
+      top:-5px;
+      width:24px;
+      height:24px;
+      border:0;
+      border-radius:50%;
+      background:var(--ink);
+      color:#fff;
+      font-size:15px;
+      line-height:1;
+      display:grid;
+      place-items:center;
+      padding:0;
+      box-shadow:0 2px 6px rgba(0,0,0,.18);
+    }
+    .image-empty{
       width:96px;height:96px;border-radius:50%;
       border:2px dashed var(--line);
       display:grid;place-items:center;
-      overflow:hidden;
       background:#faf7f1;
       color:var(--muted);
       font-size:12px;
       text-align:center;
-      margin-top:10px;
     }
-    .image-preview img{width:100%;height:100%;object-fit:cover}
     .help{font-size:12px;color:var(--muted);line-height:1.5}
     .version{
       color:var(--muted);
@@ -503,7 +549,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1</div>
+    <div class="version">Stamp Card v1.3</div>
   </div>
 </div>
 
@@ -567,11 +613,10 @@
       </div>
 
       <div class="field">
-        <label>達成スタンプ画像（任意）</label>
-        <input id="imageInput" type="file">
-        <div class="help">iPhoneでは「ファイル」から画像を選んでください。</div>
-        <div id="imagePreview" class="image-preview">画像なし</div>
-        <button id="clearImageBtn" type="button" class="secondary" style="margin-top:9px">画像を外す</button>
+        <label>達成スタンプ画像（任意・複数可）</label>
+        <input id="imageInput" type="file" accept="image/*" multiple>
+        <div class="help">何枚でも追加できます。2枚以上ある場合、直前に出た画像を避けてランダム表示します。</div>
+        <div id="imageGallery" class="image-gallery"></div>
       </div>
 
       <div id="textStampFields">
@@ -602,8 +647,7 @@
   let state = null;
   let selectedDate = todayStr();
   let calendarCursor = firstOfMonth(parseDate(selectedDate));
-  let pendingImageData = null;
-  let pendingImageCleared = false;
+  let pendingImages = [];
   let memoTimer = null;
 
   const $ = id => document.getElementById(id);
@@ -683,6 +727,16 @@
 
   function styleById(id){
     return state.styles.find(s=>s.id===id) || null;
+  }
+
+  function styleImages(style){
+    if(!style) return [];
+    if(Array.isArray(style.images)) return style.images;
+    // v1互換：旧データの単一画像を配列として扱う
+    if(style.imageData){
+      return [{id:`legacy_${style.id}`, data:style.imageData}];
+    }
+    return [];
   }
 
   function questById(id){
@@ -778,10 +832,15 @@
         btn.setAttribute("aria-label", `${q.name} ${completion ? "達成済み" : "未達成"}`);
 
         if(completion){
-          if(style?.imageData){
+          const images = styleImages(style);
+          const chosen = completion.chosenImageId
+            ? images.find(x=>x.id===completion.chosenImageId)
+            : images[0];
+
+          if(chosen?.data){
             const img = document.createElement("img");
-            img.src = style.imageData;
-            img.alt = style.name || q.name;
+            img.src = chosen.data;
+            img.alt = style?.name || q.name;
             btn.appendChild(img);
           } else {
             btn.style.background = style?.color || "#d96c7a";
@@ -820,11 +879,27 @@
       state.completions = state.completions.filter(c=>c.questId!==q.id);
     }
 
+    const style = styleById(q.currentStyleId);
+    const images = styleImages(style);
+
+    let chosenImageId = null;
+    if(images.length){
+      let candidates = images;
+      if(images.length > 1 && q.lastImageId){
+        const filtered = images.filter(x=>x.id !== q.lastImageId);
+        if(filtered.length) candidates = filtered;
+      }
+      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      chosenImageId = chosen?.id || null;
+      q.lastImageId = chosenImageId;
+    }
+
     state.completions.push({
       id:uid("done"),
       questId:q.id,
       date:dateStr,
       styleId:q.currentStyleId,
+      chosenImageId,
       createdAt:new Date().toISOString()
     });
 
@@ -890,8 +965,10 @@
         const s = styleById(c.styleId);
         const mini = document.createElement("span");
         mini.className = "mini-stamp";
-        if(s?.imageData){
-          mini.style.backgroundImage = `url("${s.imageData}")`;
+        const imgs = styleImages(s);
+        const chosen = c.chosenImageId ? imgs.find(x=>x.id===c.chosenImageId) : imgs[0];
+        if(chosen?.data){
+          mini.style.backgroundImage = `url("${chosen.data}")`;
         }else{
           mini.style.background = s?.color || "#777";
         }
@@ -1010,16 +1087,39 @@
     $("endDateWrap").style.display = type==="single" ? "none" : "block";
   }
 
-  function setImagePreview(data){
-    const box = $("imagePreview");
-    box.innerHTML = "";
-    if(data){
-      const img = document.createElement("img");
-      img.src = data;
-      box.appendChild(img);
-    }else{
-      box.textContent = "画像なし";
+  function renderImageGallery(){
+    const gallery = $("imageGallery");
+    gallery.innerHTML = "";
+
+    if(!pendingImages.length){
+      const empty = document.createElement("div");
+      empty.className = "image-empty";
+      empty.textContent = "画像なし";
+      gallery.appendChild(empty);
+      return;
     }
+
+    pendingImages.forEach((image, index)=>{
+      const wrap = document.createElement("div");
+      wrap.className = "image-thumb";
+
+      const img = document.createElement("img");
+      img.src = image.data;
+      img.alt = `スタンプ画像 ${index+1}`;
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "image-remove";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", `画像${index+1}を削除`);
+      remove.addEventListener("click",()=>{
+        pendingImages.splice(index,1);
+        renderImageGallery();
+      });
+
+      wrap.append(img,remove);
+      gallery.appendChild(wrap);
+    });
   }
 
   function openQuestForm(questId=null){
@@ -1029,9 +1129,8 @@
     $("stampColor").value = "#d96c7a";
     $("startDate").value = selectedDate;
     $("endDate").value = "";
-    pendingImageData = null;
-    pendingImageCleared = false;
-    setImagePreview(null);
+    pendingImages = [];
+    renderImageGallery();
 
     document.querySelectorAll('#weekdayField input[type="checkbox"]').forEach(x=>x.checked=false);
 
@@ -1046,8 +1145,8 @@
       $("carryOver").checked = !!q.carryOver;
       $("stampText").value = s?.stampText || "";
       $("stampColor").value = s?.color || "#d96c7a";
-      pendingImageData = s?.imageData || null;
-      setImagePreview(pendingImageData);
+      pendingImages = styleImages(s).map(x=>({id:x.id, data:x.data}));
+      renderImageGallery();
       document.querySelectorAll('#weekdayField input[type="checkbox"]').forEach(x=>{
         x.checked = (q.weekdays||[]).includes(Number(x.value));
       });
@@ -1091,22 +1190,22 @@
   }
 
   $("imageInput").addEventListener("change", async e=>{
-    const file = e.target.files?.[0];
-    if(!file) return;
+    const files = [...(e.target.files || [])];
+    if(!files.length) return;
+
     try{
-      pendingImageData = await imageFileToDataURL(file);
-      pendingImageCleared = false;
-      setImagePreview(pendingImageData);
+      for(const file of files){
+        const data = await imageFileToDataURL(file);
+        pendingImages.push({
+          id:uid("img"),
+          data
+        });
+      }
+      renderImageGallery();
     }catch(err){
       alert(err.message || "画像の読み込みに失敗しました");
     }
     e.target.value = "";
-  });
-
-  $("clearImageBtn").addEventListener("click",()=>{
-    pendingImageData = null;
-    pendingImageCleared = true;
-    setImagePreview(null);
   });
 
   $("questType").addEventListener("change",updateQuestTypeUI);
@@ -1138,14 +1237,16 @@
     if(id){
       const q = questById(id);
       const oldStyle = styleById(q.currentStyleId);
-      const imageData = pendingImageCleared ? null : pendingImageData;
+      const oldImages = styleImages(oldStyle);
+      const oldSignature = JSON.stringify(oldImages.map(x=>[x.id,x.data]));
+      const newSignature = JSON.stringify(pendingImages.map(x=>[x.id,x.data]));
 
       const styleChanged =
         !oldStyle ||
         oldStyle.name !== name ||
         (oldStyle.stampText||"") !== stampText ||
         (oldStyle.color||"") !== color ||
-        (oldStyle.imageData||null) !== (imageData||null);
+        oldSignature !== newSignature;
 
       if(styleChanged){
         const newStyle = {
@@ -1154,7 +1255,7 @@
           name,
           stampText,
           color,
-          imageData:imageData||null,
+          images:pendingImages.map(x=>({id:x.id,data:x.data})),
           createdAt:new Date().toISOString()
         };
         state.styles.push(newStyle);
@@ -1179,7 +1280,7 @@
         name,
         stampText,
         color,
-        imageData:pendingImageData||null,
+        images:pendingImages.map(x=>({id:x.id,data:x.data})),
         createdAt:new Date().toISOString()
       });
 
@@ -1193,6 +1294,7 @@
         carryOver,
         retiredAt:null,
         currentStyleId:styleId,
+        lastImageId:null,
         order,
         createdAt:new Date().toISOString(),
         updatedAt:new Date().toISOString()
@@ -1277,7 +1379,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=2").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=4").catch(console.error);
       });
     }
   }
