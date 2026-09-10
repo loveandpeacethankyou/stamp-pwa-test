@@ -1,10 +1,11 @@
 {
-  "name": "Stamp PWA Test",
-  "short_name": "Stamp Test",
+  "name": "Stamp Card",
+  "short_name": "Stamp Card",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f4efe8",
-  "theme_color": "#f4efe8",
+  "background_color": "#f4f0e8",
+  "theme_color": "#f4f0e8",
   "icons": [
     {
       "src": "./icon-192.png",
