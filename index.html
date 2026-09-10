@@ -554,14 +554,34 @@
       padding:0;
       box-shadow:0 2px 6px rgba(0,0,0,.18);
     }
-    .image-empty{
-      width:96px;height:96px;border-radius:50%;
-      border:2px dashed var(--line);
-      display:grid;place-items:center;
-      background:#faf7f1;
-      color:var(--muted);
-      font-size:12px;
+    .image-add{
+      width:82px;
+      flex:0 0 auto;
+      border:0;
+      background:transparent;
+      padding:0;
       text-align:center;
+      color:var(--muted);
+    }
+    .image-add-circle{
+      width:76px;
+      height:76px;
+      margin:0 auto;
+      border-radius:50%;
+      border:2px dashed var(--line);
+      background:#faf7f1;
+      display:grid;
+      place-items:center;
+      font-size:32px;
+      line-height:1;
+      color:#9e968c;
+      font-weight:400;
+    }
+    .image-add-label{
+      display:block;
+      margin-top:5px;
+      font-size:10px;
+      color:var(--muted);
     }
     .help{font-size:12px;color:var(--muted);line-height:1.5}
     .version{
@@ -634,7 +654,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.6</div>
+    <div class="version">Stamp Card v1.7</div>
   </div>
 </div>
 
@@ -699,7 +719,7 @@
 
       <div class="field">
         <label>達成スタンプ画像（任意・複数可）</label>
-        <input id="imageInput" type="file" accept="image/*" multiple>
+        <input id="imageInput" type="file" accept="image/*" multiple hidden>
         <div class="help">何枚でも追加できます。2枚以上ある場合、直前に出た画像を避けてランダム表示します。</div>
         <div id="imageGallery" class="image-gallery"></div>
       </div>
@@ -845,7 +865,9 @@
         data:x.data,
         positionX:Number.isFinite(x.positionX) ? x.positionX : 50,
         positionY:Number.isFinite(x.positionY) ? x.positionY : 50,
-        zoom:Number.isFinite(x.zoom) ? x.zoom : 1
+        zoom:Number.isFinite(x.zoom) ? x.zoom : 1,
+        offsetX:Number.isFinite(x.offsetX) ? x.offsetX : 0,
+        offsetY:Number.isFinite(x.offsetY) ? x.offsetY : 0
       }));
     }
     // v1互換：旧データの単一画像を配列として扱う
@@ -855,10 +877,24 @@
         data:style.imageData,
         positionX:50,
         positionY:50,
-        zoom:1
+        zoom:1,
+        offsetX:0,
+        offsetY:0
       }];
     }
     return [];
+  }
+
+  function clampCropOffset(value, zoom){
+    const max = Math.max(0, (zoom - 1) * 50);
+    return clamp(value, -max, max);
+  }
+
+  function cropTransform(image){
+    const zoom = image?.zoom ?? 1;
+    const ox = clampCropOffset(image?.offsetX ?? 0, zoom);
+    const oy = clampCropOffset(image?.offsetY ?? 0, zoom);
+    return `translate(${ox}%, ${oy}%) scale(${zoom})`;
   }
 
   function questById(id){
@@ -964,7 +1000,7 @@
             img.src = chosen.data;
             img.alt = style?.name || q.name;
             img.style.objectPosition = `${chosen.positionX ?? 50}% ${chosen.positionY ?? 50}%`;
-            img.style.transform = `scale(${chosen.zoom ?? 1})`;
+            img.style.transform = cropTransform(chosen);
             btn.appendChild(img);
           } else {
             btn.style.background = style?.color || "#d96c7a";
@@ -1096,7 +1132,7 @@
           miniImg.src = chosen.data;
           miniImg.alt = "";
           miniImg.style.objectPosition = `${chosen.positionX ?? 50}% ${chosen.positionY ?? 50}%`;
-          miniImg.style.transform = `scale(${chosen.zoom ?? 1})`;
+          miniImg.style.transform = cropTransform(chosen);
           mini.appendChild(miniImg);
         }else{
           mini.style.background = s?.color || "#777";
@@ -1220,13 +1256,24 @@
     const gallery = $("imageGallery");
     gallery.innerHTML = "";
 
-    if(!pendingImages.length){
-      const empty = document.createElement("div");
-      empty.className = "image-empty";
-      empty.textContent = "画像なし";
-      gallery.appendChild(empty);
-      return;
-    }
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "image-add";
+    add.setAttribute("aria-label","スタンプ画像を追加");
+
+    const addCircle = document.createElement("span");
+    addCircle.className = "image-add-circle";
+    addCircle.textContent = "＋";
+
+    const addLabel = document.createElement("span");
+    addLabel.className = "image-add-label";
+    addLabel.textContent = "画像を追加";
+
+    add.append(addCircle,addLabel);
+    add.addEventListener("click",()=>{
+      $("imageInput").click();
+    });
+    gallery.appendChild(add);
 
     pendingImages.forEach((image, index)=>{
       const item = document.createElement("div");
@@ -1241,7 +1288,7 @@
       img.src = image.data;
       img.alt = `スタンプ画像 ${index+1}`;
       img.style.objectPosition = `${image.positionX ?? 50}% ${image.positionY ?? 50}%`;
-      img.style.transform = `scale(${image.zoom ?? 1})`;
+      img.style.transform = cropTransform(image);
 
       thumb.appendChild(img);
       thumb.addEventListener("click",(e)=>{
@@ -1283,7 +1330,7 @@
     $("cropPreviewImage").src = image.data;
     $("cropPreviewImage").style.objectPosition =
       `${image.positionX ?? 50}% ${image.positionY ?? 50}%`;
-    $("cropPreviewImage").style.transform = `scale(${zoom})`;
+    $("cropPreviewImage").style.transform = cropTransform(image);
     $("cropZoomRange").value = Math.round(zoom * 100);
     $("cropZoomValue").textContent = `${Math.round(zoom * 100)}%`;
   }
@@ -1310,7 +1357,9 @@
       startX:e.clientX,
       startY:e.clientY,
       startPX:image.positionX ?? 50,
-      startPY:image.positionY ?? 50
+      startPY:image.positionY ?? 50,
+      startOX:image.offsetX ?? 0,
+      startOY:image.offsetY ?? 0
     };
     try{$("cropPreview").setPointerCapture(e.pointerId)}catch(_){}
     e.preventDefault();
@@ -1322,10 +1371,22 @@
     const dx = e.clientX - cropDrag.startX;
     const dy = e.clientY - cropDrag.startY;
 
-    // 画像を指で右へ動かす = 左側を多く見せるので object-position は減らす
     const image = pendingImages[editingCropIndex];
-    image.positionX = clamp(cropDrag.startPX - (dx / rect.width) * 100, 0, 100);
-    image.positionY = clamp(cropDrag.startPY - (dy / rect.height) * 100, 0, 100);
+    const zoom = image.zoom ?? 1;
+
+    if(zoom > 1.001){
+      // 拡大中は、拡大で生まれた余白の範囲内を上下左右に移動
+      const dxPct = (dx / rect.width) * 100;
+      const dyPct = (dy / rect.height) * 100;
+      image.offsetX = clampCropOffset(cropDrag.startOX + dxPct, zoom);
+      image.offsetY = clampCropOffset(cropDrag.startOY + dyPct, zoom);
+    }else{
+      // 100%では従来どおり元画像の切り抜き位置を調整
+      image.positionX = clamp(cropDrag.startPX - (dx / rect.width) * 100, 0, 100);
+      image.positionY = clamp(cropDrag.startPY - (dy / rect.height) * 100, 0, 100);
+      image.offsetX = 0;
+      image.offsetY = 0;
+    }
     applyCropPreview();
     e.preventDefault();
   });
@@ -1367,7 +1428,9 @@
         startX:t.clientX,
         startY:t.clientY,
         startPX:image.positionX ?? 50,
-        startPY:image.positionY ?? 50
+        startPY:image.positionY ?? 50,
+        startOX:image.offsetX ?? 0,
+        startOY:image.offsetY ?? 0
       };
       cropPinch = null;
       e.preventDefault();
@@ -1382,6 +1445,8 @@
       const [t1,t2] = e.touches;
       const ratio = touchDistance(t1,t2) / cropPinch.startDistance;
       image.zoom = clamp(cropPinch.startZoom * ratio, 1, 3);
+      image.offsetX = clampCropOffset(image.offsetX ?? 0, image.zoom);
+      image.offsetY = clampCropOffset(image.offsetY ?? 0, image.zoom);
       applyCropPreview();
       e.preventDefault();
       return;
@@ -1392,8 +1457,18 @@
       const rect = $("cropPreview").getBoundingClientRect();
       const dx = t.clientX - cropDrag.startX;
       const dy = t.clientY - cropDrag.startY;
-      image.positionX = clamp(cropDrag.startPX - (dx / rect.width) * 100, 0, 100);
-      image.positionY = clamp(cropDrag.startPY - (dy / rect.height) * 100, 0, 100);
+      const zoom = image.zoom ?? 1;
+      if(zoom > 1.001){
+        const dxPct = (dx / rect.width) * 100;
+        const dyPct = (dy / rect.height) * 100;
+        image.offsetX = clampCropOffset(cropDrag.startOX + dxPct, zoom);
+        image.offsetY = clampCropOffset(cropDrag.startOY + dyPct, zoom);
+      }else{
+        image.positionX = clamp(cropDrag.startPX - (dx / rect.width) * 100, 0, 100);
+        image.positionY = clamp(cropDrag.startPY - (dy / rect.height) * 100, 0, 100);
+        image.offsetX = 0;
+        image.offsetY = 0;
+      }
       applyCropPreview();
       e.preventDefault();
     }
@@ -1414,6 +1489,8 @@
     const image = pendingImages[editingCropIndex];
     const delta = e.deltaY < 0 ? 0.08 : -0.08;
     image.zoom = clamp((image.zoom ?? 1) + delta, 1, 3);
+    image.offsetX = clampCropOffset(image.offsetX ?? 0, image.zoom);
+    image.offsetY = clampCropOffset(image.offsetY ?? 0, image.zoom);
     applyCropPreview();
     e.preventDefault();
   }, {passive:false});
@@ -1422,6 +1499,8 @@
     if(editingCropIndex===null) return;
     const image = pendingImages[editingCropIndex];
     image.zoom = clamp(Number($("cropZoomRange").value) / 100, 1, 3);
+    image.offsetX = clampCropOffset(image.offsetX ?? 0, image.zoom);
+    image.offsetY = clampCropOffset(image.offsetY ?? 0, image.zoom);
     applyCropPreview();
   });
 
@@ -1430,6 +1509,8 @@
     pendingImages[editingCropIndex].positionX = 50;
     pendingImages[editingCropIndex].positionY = 50;
     pendingImages[editingCropIndex].zoom = 1;
+    pendingImages[editingCropIndex].offsetX = 0;
+    pendingImages[editingCropIndex].offsetY = 0;
     applyCropPreview();
   });
 
@@ -1463,7 +1544,9 @@
         data:x.data,
         positionX:x.positionX ?? 50,
         positionY:x.positionY ?? 50,
-        zoom:x.zoom ?? 1
+        zoom:x.zoom ?? 1,
+        offsetX:x.offsetX ?? 0,
+        offsetY:x.offsetY ?? 0
       }));
       renderImageGallery();
       document.querySelectorAll('#weekdayField input[type="checkbox"]').forEach(x=>{
@@ -1520,7 +1603,9 @@
           data,
           positionX:50,
           positionY:50,
-          zoom:1
+          zoom:1,
+          offsetX:0,
+          offsetY:0
         });
       }
       renderImageGallery();
@@ -1561,10 +1646,10 @@
       const oldStyle = styleById(q.currentStyleId);
       const oldImages = styleImages(oldStyle);
       const oldSignature = JSON.stringify(oldImages.map(x=>[
-        x.id,x.data,x.positionX ?? 50,x.positionY ?? 50,x.zoom ?? 1
+        x.id,x.data,x.positionX ?? 50,x.positionY ?? 50,x.zoom ?? 1,x.offsetX ?? 0,x.offsetY ?? 0
       ]));
       const newSignature = JSON.stringify(pendingImages.map(x=>[
-        x.id,x.data,x.positionX ?? 50,x.positionY ?? 50,x.zoom ?? 1
+        x.id,x.data,x.positionX ?? 50,x.positionY ?? 50,x.zoom ?? 1,x.offsetX ?? 0,x.offsetY ?? 0
       ]));
 
       const styleChanged =
@@ -1586,7 +1671,9 @@
             data:x.data,
             positionX:x.positionX ?? 50,
             positionY:x.positionY ?? 50,
-            zoom:x.zoom ?? 1
+            zoom:x.zoom ?? 1,
+            offsetX:x.offsetX ?? 0,
+            offsetY:x.offsetY ?? 0
           })),
           createdAt:new Date().toISOString()
         };
@@ -1617,7 +1704,9 @@
           data:x.data,
           positionX:x.positionX ?? 50,
           positionY:x.positionY ?? 50,
-          zoom:x.zoom ?? 1
+          zoom:x.zoom ?? 1,
+          offsetX:x.offsetX ?? 0,
+          offsetY:x.offsetY ?? 0
         })),
         createdAt:new Date().toISOString()
       });
@@ -1722,7 +1811,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=7").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=8").catch(console.error);
       });
     }
   }
