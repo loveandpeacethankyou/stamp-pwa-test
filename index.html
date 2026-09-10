@@ -452,6 +452,56 @@
       border:1px solid var(--line);
       background:#faf7f1;
     }
+    .image-thumb{
+      cursor:pointer;
+    }
+    .crop-editor-overlay{
+      z-index:70;
+      align-items:center;
+      padding:24px 18px;
+    }
+    .crop-editor{
+      width:min(100%,420px);
+      background:var(--paper);
+      border-radius:24px;
+      padding:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.22);
+      text-align:center;
+    }
+    .crop-editor h2{
+      margin:0 0 6px;
+      font-size:20px;
+    }
+    .crop-help{
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:16px;
+    }
+    .crop-preview{
+      width:min(72vw,260px);
+      aspect-ratio:1;
+      border-radius:50%;
+      overflow:hidden;
+      margin:0 auto 16px;
+      background:#eee7dd;
+      border:2px solid var(--line);
+      touch-action:none;
+      position:relative;
+    }
+    .crop-preview img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      pointer-events:none;
+      user-select:none;
+      -webkit-user-drag:none;
+    }
+    .crop-actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
     .image-remove{
       position:absolute;
       right:-5px;
@@ -549,7 +599,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.3</div>
+    <div class="version">Stamp Card v1.4</div>
   </div>
 </div>
 
@@ -635,6 +685,20 @@
   </div>
 </div>
 
+<div id="cropOverlay" class="overlay crop-editor-overlay">
+  <div class="crop-editor">
+    <h2>トリミング位置</h2>
+    <div class="crop-help">画像を指で動かして、丸の中の位置を調整</div>
+    <div id="cropPreview" class="crop-preview">
+      <img id="cropPreviewImage" alt="トリミングプレビュー">
+    </div>
+    <div class="crop-actions">
+      <button id="cropResetBtn" type="button" class="secondary">中央に戻す</button>
+      <button id="cropDoneBtn" type="button" class="primary">決定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
   "use strict";
@@ -648,6 +712,8 @@
   let selectedDate = todayStr();
   let calendarCursor = firstOfMonth(parseDate(selectedDate));
   let pendingImages = [];
+  let editingCropIndex = null;
+  let cropDrag = null;
   let memoTimer = null;
 
   const $ = id => document.getElementById(id);
@@ -731,10 +797,22 @@
 
   function styleImages(style){
     if(!style) return [];
-    if(Array.isArray(style.images)) return style.images;
+    if(Array.isArray(style.images)){
+      return style.images.map(x=>({
+        id:x.id,
+        data:x.data,
+        positionX:Number.isFinite(x.positionX) ? x.positionX : 50,
+        positionY:Number.isFinite(x.positionY) ? x.positionY : 50
+      }));
+    }
     // v1互換：旧データの単一画像を配列として扱う
     if(style.imageData){
-      return [{id:`legacy_${style.id}`, data:style.imageData}];
+      return [{
+        id:`legacy_${style.id}`,
+        data:style.imageData,
+        positionX:50,
+        positionY:50
+      }];
     }
     return [];
   }
@@ -841,6 +919,7 @@
             const img = document.createElement("img");
             img.src = chosen.data;
             img.alt = style?.name || q.name;
+            img.style.objectPosition = `${chosen.positionX ?? 50}% ${chosen.positionY ?? 50}%`;
             btn.appendChild(img);
           } else {
             btn.style.background = style?.color || "#d96c7a";
@@ -969,6 +1048,7 @@
         const chosen = c.chosenImageId ? imgs.find(x=>x.id===c.chosenImageId) : imgs[0];
         if(chosen?.data){
           mini.style.backgroundImage = `url("${chosen.data}")`;
+          mini.style.backgroundPosition = `${chosen.positionX ?? 50}% ${chosen.positionY ?? 50}%`;
         }else{
           mini.style.background = s?.color || "#777";
         }
@@ -1106,13 +1186,17 @@
       const img = document.createElement("img");
       img.src = image.data;
       img.alt = `スタンプ画像 ${index+1}`;
+      img.style.objectPosition = `${image.positionX ?? 50}% ${image.positionY ?? 50}%`;
+
+      wrap.addEventListener("click",()=>openCropEditor(index));
 
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "image-remove";
       remove.textContent = "×";
       remove.setAttribute("aria-label", `画像${index+1}を削除`);
-      remove.addEventListener("click",()=>{
+      remove.addEventListener("click",(e)=>{
+        e.stopPropagation();
         pendingImages.splice(index,1);
         renderImageGallery();
       });
@@ -1121,6 +1205,78 @@
       gallery.appendChild(wrap);
     });
   }
+
+  function clamp(n,min,max){
+    return Math.max(min,Math.min(max,n));
+  }
+
+  function applyCropPreview(){
+    if(editingCropIndex===null) return;
+    const image = pendingImages[editingCropIndex];
+    if(!image) return;
+    $("cropPreviewImage").src = image.data;
+    $("cropPreviewImage").style.objectPosition =
+      `${image.positionX ?? 50}% ${image.positionY ?? 50}%`;
+  }
+
+  function openCropEditor(index){
+    if(!pendingImages[index]) return;
+    editingCropIndex = index;
+    applyCropPreview();
+    openOverlay("cropOverlay");
+  }
+
+  function closeCropEditor(){
+    editingCropIndex = null;
+    cropDrag = null;
+    closeOverlay("cropOverlay");
+    renderImageGallery();
+  }
+
+  $("cropPreview").addEventListener("pointerdown", e=>{
+    if(editingCropIndex===null) return;
+    const image = pendingImages[editingCropIndex];
+    cropDrag = {
+      pointerId:e.pointerId,
+      startX:e.clientX,
+      startY:e.clientY,
+      startPX:image.positionX ?? 50,
+      startPY:image.positionY ?? 50
+    };
+    try{$("cropPreview").setPointerCapture(e.pointerId)}catch(_){}
+    e.preventDefault();
+  });
+
+  $("cropPreview").addEventListener("pointermove", e=>{
+    if(!cropDrag || e.pointerId!==cropDrag.pointerId || editingCropIndex===null) return;
+    const rect = $("cropPreview").getBoundingClientRect();
+    const dx = e.clientX - cropDrag.startX;
+    const dy = e.clientY - cropDrag.startY;
+
+    // 画像を指で右へ動かす = 左側を多く見せるので object-position は減らす
+    const image = pendingImages[editingCropIndex];
+    image.positionX = clamp(cropDrag.startPX - (dx / rect.width) * 100, 0, 100);
+    image.positionY = clamp(cropDrag.startPY - (dy / rect.height) * 100, 0, 100);
+    applyCropPreview();
+    e.preventDefault();
+  });
+
+  function endCropDrag(e){
+    if(!cropDrag) return;
+    if(e && e.pointerId!==undefined && e.pointerId!==cropDrag.pointerId) return;
+    cropDrag = null;
+  }
+  $("cropPreview").addEventListener("pointerup", endCropDrag);
+  $("cropPreview").addEventListener("pointercancel", endCropDrag);
+
+  $("cropResetBtn").addEventListener("click",()=>{
+    if(editingCropIndex===null) return;
+    pendingImages[editingCropIndex].positionX = 50;
+    pendingImages[editingCropIndex].positionY = 50;
+    applyCropPreview();
+  });
+
+  $("cropDoneBtn").addEventListener("click",closeCropEditor);
 
   function openQuestForm(questId=null){
     $("questForm").reset();
@@ -1145,7 +1301,12 @@
       $("carryOver").checked = !!q.carryOver;
       $("stampText").value = s?.stampText || "";
       $("stampColor").value = s?.color || "#d96c7a";
-      pendingImages = styleImages(s).map(x=>({id:x.id, data:x.data}));
+      pendingImages = styleImages(s).map(x=>({
+        id:x.id,
+        data:x.data,
+        positionX:x.positionX ?? 50,
+        positionY:x.positionY ?? 50
+      }));
       renderImageGallery();
       document.querySelectorAll('#weekdayField input[type="checkbox"]').forEach(x=>{
         x.checked = (q.weekdays||[]).includes(Number(x.value));
@@ -1198,7 +1359,9 @@
         const data = await imageFileToDataURL(file);
         pendingImages.push({
           id:uid("img"),
-          data
+          data,
+          positionX:50,
+          positionY:50
         });
       }
       renderImageGallery();
@@ -1238,8 +1401,12 @@
       const q = questById(id);
       const oldStyle = styleById(q.currentStyleId);
       const oldImages = styleImages(oldStyle);
-      const oldSignature = JSON.stringify(oldImages.map(x=>[x.id,x.data]));
-      const newSignature = JSON.stringify(pendingImages.map(x=>[x.id,x.data]));
+      const oldSignature = JSON.stringify(oldImages.map(x=>[
+        x.id,x.data,x.positionX ?? 50,x.positionY ?? 50
+      ]));
+      const newSignature = JSON.stringify(pendingImages.map(x=>[
+        x.id,x.data,x.positionX ?? 50,x.positionY ?? 50
+      ]));
 
       const styleChanged =
         !oldStyle ||
@@ -1255,7 +1422,12 @@
           name,
           stampText,
           color,
-          images:pendingImages.map(x=>({id:x.id,data:x.data})),
+          images:pendingImages.map(x=>({
+            id:x.id,
+            data:x.data,
+            positionX:x.positionX ?? 50,
+            positionY:x.positionY ?? 50
+          })),
           createdAt:new Date().toISOString()
         };
         state.styles.push(newStyle);
@@ -1280,7 +1452,12 @@
         name,
         stampText,
         color,
-        images:pendingImages.map(x=>({id:x.id,data:x.data})),
+        images:pendingImages.map(x=>({
+          id:x.id,
+          data:x.data,
+          positionX:x.positionX ?? 50,
+          positionY:x.positionY ?? 50
+        })),
         createdAt:new Date().toISOString()
       });
 
@@ -1362,7 +1539,12 @@
 
   document.querySelectorAll(".overlay").forEach(el=>{
     el.addEventListener("click",e=>{
-      if(e.target===el) closeOverlay(el.id);
+      if(e.target!==el) return;
+      if(el.id==="cropOverlay"){
+        closeCropEditor();
+      }else{
+        closeOverlay(el.id);
+      }
     });
   });
 
@@ -1379,7 +1561,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=4").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=5").catch(console.error);
       });
     }
   }
