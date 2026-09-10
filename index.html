@@ -25,6 +25,12 @@
       background:var(--bg);
     }
     *{box-sizing:border-box}
+    html,body{
+      width:100%;
+      max-width:100%;
+      overflow-x:hidden;
+      overscroll-behavior-x:none;
+    }
     body{
       margin:0;
       min-height:100vh;
@@ -317,7 +323,10 @@
     .sheet{
       width:min(100%,560px);
       max-height:88vh;
-      overflow:auto;
+      overflow-y:auto;
+      overflow-x:hidden;
+      overscroll-behavior-x:none;
+      touch-action:pan-y;
       background:var(--paper);
       border-radius:24px 24px 0 0;
       padding:18px 18px calc(22px + env(safe-area-inset-bottom));
@@ -508,8 +517,8 @@
       <input id="questId" type="hidden">
 
       <div class="field">
-        <label for="questName">クエスト名</label>
-        <input id="questName" type="text" maxlength="20" placeholder="マンガ" required>
+        <label for="questName">スタンプ名</label>
+        <input id="questName" type="text" maxlength="20" placeholder="名前を入力" required>
       </div>
 
       <div class="field">
@@ -1268,7 +1277,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=1").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=2").catch(console.error);
       });
     }
   }
