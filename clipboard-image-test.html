@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipboard Image Test</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;padding:24px;line-height:1.5;background:#faf8f4}
+button{font-size:18px;padding:12px 16px;border:0;border-radius:12px;background:#222;color:#fff}
+img{display:none;max-width:240px;max-height:240px;margin-top:18px;border-radius:16px}
+pre{white-space:pre-wrap;background:#eee8df;padding:12px;border-radius:10px;margin-top:14px}
+</style>
+</head>
+<body>
+<h1>クリップボード画像テスト</h1>
+<p>1. 写真アプリで画像を開く → 共有 →「コピー」<br>
+2. Safariに戻る → 下のボタンを押す</p>
+
+<button id="pasteBtn">クリップボードから貼り付け</button>
+<pre id="log">未実行</pre>
+<img id="preview" alt="貼り付けた画像">
+
+<script>
+const btn = document.getElementById('pasteBtn');
+const log = document.getElementById('log');
+const preview = document.getElementById('preview');
+
+btn.addEventListener('click', async () => {
+  log.textContent = '読み込み中…';
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      throw new Error('このブラウザでは navigator.clipboard.read() が使えません');
+    }
+
+    const items = await navigator.clipboard.read();
+    let found = false;
+
+    for (const item of items) {
+      const imageType = item.types.find(t => t.startsWith('image/'));
+      if (!imageType) continue;
+
+      const blob = await item.getType(imageType);
+      const url = URL.createObjectURL(blob);
+      preview.src = url;
+      preview.style.display = 'block';
+      log.textContent = `成功
+type: ${blob.type}
+size: ${blob.size} bytes`;
+      found = true;
+      break;
+    }
+
+    if (!found) {
+      log.textContent = '画像が見つかりませんでした。写真アプリで画像を「コピー」してからもう一度試してください。';
+    }
+  } catch (err) {
+    log.textContent = '失敗: ' + (err && err.message ? err.message : String(err));
+  }
+});
+</script>
+</body>
+</html>
