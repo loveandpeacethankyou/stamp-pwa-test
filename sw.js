@@ -1,4 +1,4 @@
-const CACHE = "stamp-pwa-test-v1";
+const CACHE = "stamp-pwa-test-v2";
 const ASSETS = [
   "./",
   "./index.html",

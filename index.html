@@ -119,7 +119,7 @@
       <label class="file-label" for="imageInput">写真を選ぶ</label>
       <button id="loadImage" class="secondary">保存画像を表示</button>
     </div>
-    <input id="imageInput" type="file" accept="image/*" />
+    <input id="imageInput" type="file" />
     <div style="margin-top:12px">
       <img id="preview" alt="選んだ画像のプレビュー">
     </div>
@@ -220,6 +220,12 @@ document.getElementById("loadMemo").onclick = async () => {
 document.getElementById("imageInput").onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  if (!file.type || !file.type.startsWith("image/")) {
+    document.getElementById("imageStatus").textContent = "画像ファイルを選んでください";
+    document.getElementById("imageStatus").className = "status warn";
+    e.target.value = "";
+    return;
+  }
   const reader = new FileReader();
   reader.onload = async () => {
     await setValue("image", reader.result);
@@ -310,19 +316,9 @@ document.getElementById("importInput").onchange = async (e) => {
   }
 };
 
-function updateNetwork() {
-  const el = document.getElementById("networkStatus");
-  if (navigator.onLine) {
-    el.textContent = "現在オンライン";
-    el.className = "status ok";
-  } else {
-    el.textContent = "現在オフライン";
-    el.className = "status offline";
-  }
-}
-window.addEventListener("online", updateNetwork);
-window.addEventListener("offline", updateNetwork);
-updateNetwork();
+document.getElementById("networkStatus").textContent =
+  "機内モードでもホーム画面から起動できれば合格です。";
+document.getElementById("networkStatus").className = "status";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
