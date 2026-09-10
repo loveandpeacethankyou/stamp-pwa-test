@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4efe8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Stamp Test" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icon-180.png" />
+  <title>Stamp PWA Test</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #222;
+      background: #f4efe8;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: calc(18px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+      box-sizing: border-box;
+    }
+    main {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 8px 0 4px;
+    }
+    .sub {
+      margin: 0 0 18px;
+      color: #666;
+      font-size: 14px;
+    }
+    .card {
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: 18px;
+      padding: 16px;
+      margin: 12px 0;
+      box-shadow: 0 4px 18px rgba(0,0,0,.05);
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button, .file-label {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 11px 14px;
+      background: #222;
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button.secondary, .file-label.secondary {
+      background: #ddd4ca;
+      color: #222;
+    }
+    textarea {
+      width: 100%;
+      min-height: 86px;
+      resize: vertical;
+      border: 1px solid #cfc6bd;
+      border-radius: 12px;
+      padding: 10px;
+      box-sizing: border-box;
+      background: rgba(255,255,255,.8);
+      font-size: 16px;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    #preview {
+      width: 112px;
+      height: 112px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 2px dashed #c8b9aa;
+      background: white;
+      display: none;
+    }
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+    .ok { color: #146c2e; }
+    .warn { color: #9a5a00; }
+    .offline { color: #a21b1b; }
+    .small { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Stamp PWA 実機テスト</h1>
+  <p class="sub">本体を作る前に、iPhoneで危ない部分だけ確認するテスト版です。</p>
+
+  <section class="card">
+    <h2>1. 保存テスト</h2>
+    <textarea id="memo" placeholder="ここに適当に文字を入れる"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="saveMemo">保存</button>
+      <button id="loadMemo" class="secondary">読み込み</button>
+    </div>
+    <div id="memoStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. 画像テスト</h2>
+    <div class="row">
+      <label class="file-label" for="imageInput">写真を選ぶ</label>
+      <button id="loadImage" class="secondary">保存画像を表示</button>
+    </div>
+    <input id="imageInput" type="file" accept="image/*" />
+    <div style="margin-top:12px">
+      <img id="preview" alt="選んだ画像のプレビュー">
+    </div>
+    <div id="imageStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>3. 音テスト</h2>
+    <button id="playSound">ポン音を鳴らす</button>
+    <div id="soundStatus" class="status small">iPhoneでは消音モードや音量設定の影響を受けます。</div>
+  </section>
+
+  <section class="card">
+    <h2>4. バックアップ</h2>
+    <div class="row">
+      <button id="exportBackup">書き出し</button>
+      <label class="file-label secondary" for="importInput">読み込み</label>
+    </div>
+    <input id="importInput" type="file" accept="application/json,.json" />
+    <div id="backupStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>5. オフライン確認</h2>
+    <div id="networkStatus" class="status"></div>
+    <p class="small">
+      ホーム画面に追加して一度起動したあと、機内モードにして再度開ければOKです。
+    </p>
+  </section>
+</main>
+
+<script>
+const DB_NAME = "stamp-pwa-test";
+const STORE = "data";
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(STORE)) {
+        req.result.createObjectStore(STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function setValue(key, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getValue(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const req = tx.objectStore(STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getAllData() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const store = tx.objectStore(STORE);
+    const keysReq = store.getAllKeys();
+    const valsReq = store.getAll();
+    tx.oncomplete = () => {
+      const obj = {};
+      keysReq.result.forEach((k, i) => obj[k] = valsReq.result[i]);
+      resolve(obj);
+    };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+document.getElementById("saveMemo").onclick = async () => {
+  await setValue("memo", document.getElementById("memo").value);
+  document.getElementById("memoStatus").textContent = "保存しました";
+  document.getElementById("memoStatus").className = "status ok";
+};
+
+document.getElementById("loadMemo").onclick = async () => {
+  const v = await getValue("memo");
+  document.getElementById("memo").value = v || "";
+  document.getElementById("memoStatus").textContent = v !== undefined ? "保存内容を読み込みました" : "まだ保存データがありません";
+  document.getElementById("memoStatus").className = "status";
+};
+
+document.getElementById("imageInput").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    await setValue("image", reader.result);
+    const img = document.getElementById("preview");
+    img.src = reader.result;
+    img.style.display = "block";
+    document.getElementById("imageStatus").textContent = "画像を端末内に保存しました";
+    document.getElementById("imageStatus").className = "status ok";
+  };
+  reader.readAsDataURL(file);
+};
+
+document.getElementById("loadImage").onclick = async () => {
+  const data = await getValue("image");
+  const img = document.getElementById("preview");
+  if (data) {
+    img.src = data;
+    img.style.display = "block";
+    document.getElementById("imageStatus").textContent = "保存画像を読み込みました";
+    document.getElementById("imageStatus").className = "status ok";
+  } else {
+    document.getElementById("imageStatus").textContent = "まだ保存画像がありません";
+    document.getElementById("imageStatus").className = "status";
+  }
+};
+
+document.getElementById("playSound").onclick = async () => {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.11);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+    document.getElementById("soundStatus").textContent = "鳴らしました";
+    document.getElementById("soundStatus").className = "status ok";
+  } catch (err) {
+    document.getElementById("soundStatus").textContent = "音の再生に失敗: " + err.message;
+    document.getElementById("soundStatus").className = "status warn";
+  }
+};
+
+document.getElementById("exportBackup").onclick = async () => {
+  const data = await getAllData();
+  const payload = {
+    app: "stamp-pwa-test",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "stamp-pwa-backup.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  document.getElementById("backupStatus").textContent = "バックアップを書き出しました";
+  document.getElementById("backupStatus").className = "status ok";
+};
+
+document.getElementById("importInput").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    if (!payload || payload.app !== "stamp-pwa-test" || !payload.data) {
+      throw new Error("このテストアプリのバックアップではありません");
+    }
+    for (const [key, value] of Object.entries(payload.data)) {
+      await setValue(key, value);
+    }
+    document.getElementById("backupStatus").textContent = "バックアップを復元しました";
+    document.getElementById("backupStatus").className = "status ok";
+  } catch (err) {
+    document.getElementById("backupStatus").textContent = "読み込み失敗: " + err.message;
+    document.getElementById("backupStatus").className = "status warn";
+  }
+};
+
+function updateNetwork() {
+  const el = document.getElementById("networkStatus");
+  if (navigator.onLine) {
+    el.textContent = "現在オンライン";
+    el.className = "status ok";
+  } else {
+    el.textContent = "現在オフライン";
+    el.className = "status offline";
+  }
+}
+window.addEventListener("online", updateNetwork);
+window.addEventListener("offline", updateNetwork);
+updateNetwork();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(console.error);
+  });
+}
+</script>
+</body>
+</html>
