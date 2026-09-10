@@ -435,13 +435,24 @@
       gap:10px;
       margin-top:10px;
     }
+    .image-item{
+      width:82px;
+      flex:0 0 auto;
+      text-align:center;
+      position:relative;
+    }
     .image-thumb{
       width:76px;
       height:76px;
       border-radius:50%;
-      position:relative;
-      overflow:visible;
-      flex:0 0 auto;
+      border:0;
+      padding:0;
+      margin:0 auto;
+      display:block;
+      overflow:hidden;
+      background:#faf7f1;
+      box-shadow:0 0 0 1px var(--line);
+      touch-action:manipulation;
     }
     .image-thumb img{
       width:100%;
@@ -449,11 +460,14 @@
       object-fit:cover;
       border-radius:50%;
       display:block;
-      border:1px solid var(--line);
       background:#faf7f1;
+      pointer-events:none;
     }
-    .image-thumb{
-      cursor:pointer;
+    .image-edit-label{
+      display:block;
+      margin-top:5px;
+      font-size:10px;
+      color:var(--muted);
     }
     .crop-editor-overlay{
       z-index:70;
@@ -504,7 +518,7 @@
     }
     .image-remove{
       position:absolute;
-      right:-5px;
+      right:0;
       top:-5px;
       width:24px;
       height:24px;
@@ -599,7 +613,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.4</div>
+    <div class="version">Stamp Card v1.5</div>
   </div>
 </div>
 
@@ -1180,15 +1194,29 @@
     }
 
     pendingImages.forEach((image, index)=>{
-      const wrap = document.createElement("div");
-      wrap.className = "image-thumb";
+      const item = document.createElement("div");
+      item.className = "image-item";
+
+      const thumb = document.createElement("button");
+      thumb.type = "button";
+      thumb.className = "image-thumb";
+      thumb.setAttribute("aria-label", `画像${index+1}のトリミング位置を調整`);
 
       const img = document.createElement("img");
       img.src = image.data;
       img.alt = `スタンプ画像 ${index+1}`;
       img.style.objectPosition = `${image.positionX ?? 50}% ${image.positionY ?? 50}%`;
 
-      wrap.addEventListener("click",()=>openCropEditor(index));
+      thumb.appendChild(img);
+      thumb.addEventListener("click",(e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        openCropEditor(index);
+      });
+
+      const label = document.createElement("span");
+      label.className = "image-edit-label";
+      label.textContent = "位置調整";
 
       const remove = document.createElement("button");
       remove.type = "button";
@@ -1196,13 +1224,14 @@
       remove.textContent = "×";
       remove.setAttribute("aria-label", `画像${index+1}を削除`);
       remove.addEventListener("click",(e)=>{
+        e.preventDefault();
         e.stopPropagation();
         pendingImages.splice(index,1);
         renderImageGallery();
       });
 
-      wrap.append(img,remove);
-      gallery.appendChild(wrap);
+      item.append(thumb,label,remove);
+      gallery.appendChild(item);
     });
   }
 
@@ -1268,6 +1297,42 @@
   }
   $("cropPreview").addEventListener("pointerup", endCropDrag);
   $("cropPreview").addEventListener("pointercancel", endCropDrag);
+
+  // iOS向けフォールバック
+  $("cropPreview").addEventListener("touchstart", e=>{
+    if(editingCropIndex===null || !e.touches.length) return;
+    const t = e.touches[0];
+    const image = pendingImages[editingCropIndex];
+    cropDrag = {
+      pointerId:"touch",
+      startX:t.clientX,
+      startY:t.clientY,
+      startPX:image.positionX ?? 50,
+      startPY:image.positionY ?? 50
+    };
+    e.preventDefault();
+  }, {passive:false});
+
+  $("cropPreview").addEventListener("touchmove", e=>{
+    if(!cropDrag || cropDrag.pointerId!=="touch" || editingCropIndex===null || !e.touches.length) return;
+    const t = e.touches[0];
+    const rect = $("cropPreview").getBoundingClientRect();
+    const dx = t.clientX - cropDrag.startX;
+    const dy = t.clientY - cropDrag.startY;
+    const image = pendingImages[editingCropIndex];
+    image.positionX = clamp(cropDrag.startPX - (dx / rect.width) * 100, 0, 100);
+    image.positionY = clamp(cropDrag.startPY - (dy / rect.height) * 100, 0, 100);
+    applyCropPreview();
+    e.preventDefault();
+  }, {passive:false});
+
+  $("cropPreview").addEventListener("touchend", ()=>{
+    if(cropDrag?.pointerId==="touch") cropDrag = null;
+  }, {passive:true});
+
+  $("cropPreview").addEventListener("touchcancel", ()=>{
+    if(cropDrag?.pointerId==="touch") cropDrag = null;
+  }, {passive:true});
 
   $("cropResetBtn").addEventListener("click",()=>{
     if(editingCropIndex===null) return;
@@ -1561,7 +1626,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=5").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=6").catch(console.error);
       });
     }
   }
