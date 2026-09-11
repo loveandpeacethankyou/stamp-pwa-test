@@ -1038,7 +1038,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.24</div>
+    <div class="version">Stamp Card v1.9.25</div>
   </div>
 </div>
 
@@ -1936,16 +1936,63 @@
     renderCalendar();
   }
 
-  const stampSound = new Audio("./stamp-sound.mp3");
-  stampSound.preload = "auto";
+  let stampAudioCtx = null;
+  let stampAudioBuffer = null;
+  let stampAudioLoadPromise = null;
+
+  function getStampAudioContext(){
+    if(stampAudioCtx) return stampAudioCtx;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    stampAudioCtx = new Ctx({latencyHint:"interactive"});
+    return stampAudioCtx;
+  }
+
+  async function preloadStampSound(){
+    if(stampAudioBuffer) return stampAudioBuffer;
+    if(stampAudioLoadPromise) return stampAudioLoadPromise;
+
+    stampAudioLoadPromise = (async ()=>{
+      const ctx = getStampAudioContext();
+      if(!ctx) return null;
+
+      const res = await fetch("./stamp-sound.wav", {cache:"force-cache"});
+      if(!res.ok) throw new Error("stamp sound fetch failed");
+      const bytes = await res.arrayBuffer();
+      stampAudioBuffer = await ctx.decodeAudioData(bytes);
+      return stampAudioBuffer;
+    })().catch(err=>{
+      console.warn("stamp sound preload failed:", err);
+      stampAudioLoadPromise = null;
+      return null;
+    });
+
+    return stampAudioLoadPromise;
+  }
 
   function playStampSound(){
     try{
-      const sound = stampSound.cloneNode(true);
-      sound.volume = 1;
-      sound.play().catch(()=>{});
+      const ctx = getStampAudioContext();
+      if(!ctx || !stampAudioBuffer) return;
+
+      const source = ctx.createBufferSource();
+      source.buffer = stampAudioBuffer;
+      source.connect(ctx.destination);
+
+      if(ctx.state === "running"){
+        source.start(0);
+      }else{
+        ctx.resume().then(()=>source.start(0)).catch(()=>{});
+      }
     }catch(e){}
   }
+
+  // iPhone/Safari対策：
+  // 音源自体は先にデコードし、最初のタッチでAudioContextだけ即座に有効化する。
+  document.addEventListener("pointerdown", ()=>{
+    const ctx = getStampAudioContext();
+    if(ctx?.state === "suspended") ctx.resume().catch(()=>{});
+  }, {capture:true, passive:true});
 
   function renderMonthlyLibrary(){
     const y = libraryCursor.getFullYear();
@@ -3459,6 +3506,9 @@
 
     updateCloudUI();
 
+    // スタンプSEを先に読み込み・デコードして、タップ時の遅延を減らす。
+    preloadStampSound().catch(()=>{});
+
     // ローカルの読み込み完了後にだけクラウドを確認する。
     // 端末とクラウドの両方に変更がある場合は自動上書きしない。
     if(getCloudSession()){
@@ -3475,7 +3525,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.24").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.25").catch(console.error);
       });
     }
   }

@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-24-mechanical-sound";
+const CACHE = "stamp-card-v1-9-25-instant-approved-sound";
 const CORE = [
   "./",
   "./index.html",
@@ -6,7 +6,7 @@ const CORE = [
   "./icon-180.png",
   "./icon-192.png",
   "./icon-512.png",
-  "./stamp-sound.mp3"
+  "./stamp-sound.wav"
 ];
 
 self.addEventListener("install", event => {
