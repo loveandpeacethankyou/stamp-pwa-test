@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-15-autogrow-textarea";
+const CACHE = "stamp-card-v1-9-16-label-below";
 const CORE = [
   "./",
   "./index.html",
