@@ -1047,7 +1047,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.31</div>
+    <div class="version">Stamp Card v1.9.32</div>
   </div>
 </div>
 
@@ -3145,7 +3145,7 @@
   function updateCloudUI(message=null){
     const session = getCloudSession();
     const loggedIn = !!session?.access_token;
-    $("cloudUploadBtn").disabled = true;
+    $("cloudUploadBtn").disabled = !loggedIn;
     $("cloudDownloadBtn").disabled = !loggedIn;
     $("migrateImagesBtn").disabled = !loggedIn || imageMigrationRunning;
     $("cloudLoginBtn").textContent = loggedIn ? "ログアウト" : "ログイン";
@@ -3160,10 +3160,8 @@
       return;
     }
 
-    const meta = getCloudMeta(session.user_id);
-    $("cloudStatus").textContent = meta.dirty
-      ? `ログイン中：${session.email || "ユーザー"} ／ 同期待ち`
-      : `ログイン中：${session.email || "ユーザー"} ／ 自動同期ON`;
+    $("cloudStatus").textContent =
+      `ログイン中：${session.email || "ユーザー"} ／ 手動同期（軽量化確認中）`;
   }
 
   async function fetchCloudRow(session, includeState=true){
@@ -3245,6 +3243,107 @@
     await autoCloudSyncCheck(true);
   }
 
+  function cloudStateWithoutImageData(){
+    const cloned = JSON.parse(JSON.stringify(state));
+    let missingCloudPath = 0;
+    let stripped = 0;
+
+    for(const style of cloned.styles || []){
+      if(style.imageData){
+        // 旧形式の画像は巨大JSONに残さない。旧形式がまだある場合は保存を止める。
+        missingCloudPath++;
+      }
+
+      if(Array.isArray(style.images)){
+        for(const image of style.images){
+          if(image?.data){
+            if(!image.cloudPath) missingCloudPath++;
+            delete image.data;
+            stripped++;
+          }
+        }
+      }
+    }
+
+    for(const images of Object.values(cloned.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        if(image?.data){
+          if(!image.cloudPath) missingCloudPath++;
+          delete image.data;
+          stripped++;
+        }
+      }
+    }
+
+    return {cloudState:cloned, missingCloudPath, stripped};
+  }
+
+  async function blobToDataUrl(blob){
+    return new Promise((resolve,reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result);
+      reader.onerror = ()=>reject(reader.error || new Error("画像変換に失敗しました"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function downloadStorageImageAsDataUrl(session, path){
+    const endpoint =
+      `${SUPABASE_URL}/storage/v1/object/authenticated/${IMAGE_BUCKET}/${encodedStoragePath(path)}`;
+
+    const res = await fetch(endpoint, {
+      method:"GET",
+      headers:cloudHeaders(session.access_token)
+    });
+
+    if(!res.ok){
+      const text = await res.text();
+      throw new Error(`Storage download failed ${res.status}: ${text}`);
+    }
+
+    const blob = await res.blob();
+    return blobToDataUrl(blob);
+  }
+
+  function collectCloudImagesNeedingDownload(incoming){
+    const items = [];
+
+    for(const style of incoming.styles || []){
+      if(!Array.isArray(style.images)) continue;
+      for(const image of style.images){
+        if(image?.cloudPath && !image.data){
+          items.push({image});
+        }
+      }
+    }
+
+    for(const images of Object.values(incoming.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        if(image?.cloudPath && !image.data){
+          items.push({image});
+        }
+      }
+    }
+
+    return items;
+  }
+
+  async function hydrateCloudImages(incoming, session){
+    const items = collectCloudImagesNeedingDownload(incoming);
+    if(!items.length) return incoming;
+
+    for(let i=0;i<items.length;i++){
+      $("cloudStatus").textContent =
+        `Storage画像を取得中… ${i+1} / ${items.length}`;
+      items[i].image.data =
+        await downloadStorageImageAsDataUrl(session, items[i].image.cloudPath);
+    }
+
+    return incoming;
+  }
+
   async function forceCloudUpload(){
     const session = await refreshCloudSessionIfNeeded();
     if(!session){
@@ -3253,9 +3352,22 @@
       return;
     }
 
-    if(!confirm("この端末の現在データをクラウドへ保存しますか？")) return;
+    const prepared = cloudStateWithoutImageData();
+    if(prepared.missingCloudPath > 0){
+      alert(
+        `Storage未移行の画像が ${prepared.missingCloudPath}件あります。\n\n` +
+        `先に「既存画像をStorageへコピー」をもう一度押してください。`
+      );
+      return;
+    }
 
-    updateCloudUI("クラウドへ保存中…");
+    if(!confirm(
+      "この端末の現在データをクラウドへ保存しますか？\n\n" +
+      `画像本体 ${prepared.stripped}件はStorageに置いたまま、` +
+      "軽量なデータだけ保存します。"
+    )) return;
+
+    updateCloudUI("軽量データをクラウドへ保存中…");
     const updatedAt = new Date().toISOString();
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/stamp_card_state?on_conflict=user_id`, {
@@ -3266,7 +3378,7 @@
       }),
       body:JSON.stringify({
         user_id:session.user_id,
-        state,
+        state:prepared.cloudState,
         updated_at:updatedAt
       })
     });
@@ -3320,9 +3432,10 @@
     }
 
     try{
-      await saveIncomingCloudState(incoming, row.updated_at);
+      const hydrated = await hydrateCloudImages(incoming, session);
+      await saveIncomingCloudState(hydrated, row.updated_at);
       updateCloudUI(`クラウドから読込済み：${when}`);
-      alert("クラウドのデータを読み込みました。");
+      alert("クラウドのデータと画像を読み込みました。");
     }catch(err){
       console.error(err);
       updateCloudUI("端末への保存失敗");
@@ -3702,12 +3815,12 @@
     // ローカルの読み込み完了後にだけクラウドを確認する。
     // 端末とクラウドの両方に変更がある場合は自動上書きしない。
     if(getCloudSession()){
-      updateCloudUI("画像Storage移行中：自動同期は一時停止中");
+      updateCloudUI("軽量クラウド同期の確認中：自動同期は一時停止中");
     }
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.31").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.32").catch(console.error);
       });
     }
   }

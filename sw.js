@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-31-storage-migration";
+const CACHE = "stamp-card-v1-9-32-light-cloud-manual";
 const CORE = [
   "./",
   "./index.html",
