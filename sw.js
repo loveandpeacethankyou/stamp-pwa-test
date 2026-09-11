@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-28-sound-both-toggle";
+const CACHE = "stamp-card-v1-9-29-sirense-cachefix";
 const CORE = [
   "./",
   "./index.html",
@@ -6,7 +6,7 @@ const CORE = [
   "./icon-180.png",
   "./icon-192.png",
   "./icon-512.png",
-  "./stamp-sound.wav"
+  "./sirense-stamp-v1.wav"
 ];
 
 self.addEventListener("install", event => {

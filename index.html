@@ -1038,7 +1038,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.28</div>
+    <div class="version">Stamp Card v1.9.29</div>
   </div>
 </div>
 
@@ -1957,7 +1957,7 @@
       const ctx = getStampAudioContext();
       if(!ctx) return null;
 
-      const res = await fetch("./stamp-sound.wav", {cache:"force-cache"});
+      const res = await fetch("./sirense-stamp-v1.wav", {cache:"reload"});
       if(!res.ok) throw new Error("stamp sound fetch failed");
       const bytes = await res.arrayBuffer();
       stampAudioBuffer = await ctx.decodeAudioData(bytes);
@@ -3526,7 +3526,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.28").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.29").catch(console.error);
       });
     }
   }
