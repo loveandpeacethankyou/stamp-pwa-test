@@ -731,6 +731,34 @@
       font-size:11px;
       line-height:1.5;
     }
+    .cloud-section{
+      margin-top:18px;
+      padding-top:16px;
+      border-top:1px solid var(--line);
+    }
+    .cloud-section input{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:11px 12px;
+      background:rgba(255,255,255,.7);
+      color:var(--ink);
+      font:inherit;
+      margin-bottom:8px;
+    }
+    .cloud-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:8px;
+    }
+    .cloud-status{
+      margin-top:8px;
+      color:var(--muted);
+      font-size:11px;
+      line-height:1.5;
+      word-break:break-word;
+    }
   </style>
 </head>
 <body>
@@ -818,7 +846,19 @@
       <div class="backup-note">スタンプ・達成記録・メモ・日記・画像をまとめて保存します。</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.6</div>
+    <div class="cloud-section">
+      <h3 class="backup-title">iPhone・Windows共有</h3>
+      <input id="cloudEmail" type="email" autocomplete="username" placeholder="メールアドレス">
+      <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="パスワード">
+      <button id="cloudLoginBtn" type="button" class="secondary full">ログイン</button>
+      <div class="cloud-row">
+        <button id="cloudUploadBtn" type="button" class="secondary full" disabled>この端末 → クラウド</button>
+        <button id="cloudDownloadBtn" type="button" class="secondary full" disabled>クラウド → この端末</button>
+      </div>
+      <div id="cloudStatus" class="cloud-status">未ログイン</div>
+    </div>
+
+    <div class="version">Stamp Card v1.9.7</div>
   </div>
 </div>
 
@@ -2385,6 +2425,247 @@
     e.target.value = "";
   });
 
+  const SUPABASE_URL = "https://etbbxxtiwnetddvbhnmr.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_pZaexispb9vtWu8-b9B4sw_4sZWcH7s";
+  const CLOUD_SESSION_KEY = "stamp-card-cloud-session";
+
+  function getCloudSession(){
+    try{
+      return JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || "null");
+    }catch{
+      return null;
+    }
+  }
+
+  function setCloudSession(session){
+    if(session) localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(CLOUD_SESSION_KEY);
+  }
+
+  function cloudHeaders(token, extra={}){
+    return {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${token}`,
+      ...extra
+    };
+  }
+
+  async function refreshCloudSessionIfNeeded(){
+    let session = getCloudSession();
+    if(!session) return null;
+
+    const now = Math.floor(Date.now()/1000);
+    if(session.expires_at && session.expires_at > now + 60) return session;
+    if(!session.refresh_token) return null;
+
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method:"POST",
+      headers:{
+        "apikey":SUPABASE_KEY,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({refresh_token:session.refresh_token})
+    });
+
+    if(!res.ok){
+      setCloudSession(null);
+      return null;
+    }
+
+    const data = await res.json();
+    session = {
+      access_token:data.access_token,
+      refresh_token:data.refresh_token,
+      expires_at:Math.floor(Date.now()/1000) + (data.expires_in || 3600),
+      user_id:data.user?.id || session.user_id,
+      email:data.user?.email || session.email
+    };
+    setCloudSession(session);
+    return session;
+  }
+
+  function updateCloudUI(){
+    const session = getCloudSession();
+    const loggedIn = !!session?.access_token;
+    $("cloudUploadBtn").disabled = !loggedIn;
+    $("cloudDownloadBtn").disabled = !loggedIn;
+    $("cloudLoginBtn").textContent = loggedIn ? "ログアウト" : "ログイン";
+    $("cloudStatus").textContent = loggedIn
+      ? `ログイン中：${session.email || "ユーザー"}`
+      : "未ログイン";
+  }
+
+  async function cloudLogin(){
+    const current = getCloudSession();
+    if(current?.access_token){
+      setCloudSession(null);
+      $("cloudPassword").value = "";
+      updateCloudUI();
+      return;
+    }
+
+    const email = $("cloudEmail").value.trim();
+    const password = $("cloudPassword").value;
+    if(!email || !password){
+      alert("メールアドレスとパスワードを入力してください。");
+      return;
+    }
+
+    $("cloudStatus").textContent = "ログイン中…";
+
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method:"POST",
+      headers:{
+        "apikey":SUPABASE_KEY,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({email,password})
+    });
+
+    if(!res.ok){
+      let msg = "ログインに失敗しました。";
+      try{
+        const err = await res.json();
+        if(err?.msg) msg += "\n" + err.msg;
+        else if(err?.message) msg += "\n" + err.message;
+      }catch{}
+      $("cloudStatus").textContent = "ログイン失敗";
+      alert(msg);
+      return;
+    }
+
+    const data = await res.json();
+    const session = {
+      access_token:data.access_token,
+      refresh_token:data.refresh_token,
+      expires_at:Math.floor(Date.now()/1000) + (data.expires_in || 3600),
+      user_id:data.user?.id,
+      email:data.user?.email || email
+    };
+    setCloudSession(session);
+    $("cloudPassword").value = "";
+    updateCloudUI();
+  }
+
+  async function cloudUpload(){
+    const session = await refreshCloudSessionIfNeeded();
+    if(!session){
+      updateCloudUI();
+      alert("ログインし直してください。");
+      return;
+    }
+
+    if(!confirm("この端末の現在データをクラウドへ保存しますか？")) return;
+
+    $("cloudStatus").textContent = "クラウドへ保存中…";
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stamp_card_state?on_conflict=user_id`, {
+      method:"POST",
+      headers:cloudHeaders(session.access_token, {
+        "Content-Type":"application/json",
+        "Prefer":"resolution=merge-duplicates,return=minimal"
+      }),
+      body:JSON.stringify({
+        user_id:session.user_id,
+        state,
+        updated_at:new Date().toISOString()
+      })
+    });
+
+    if(!res.ok){
+      const text = await res.text();
+      console.error("Cloud upload failed:", res.status, text);
+      $("cloudStatus").textContent = "クラウド保存失敗";
+      alert("クラウドへの保存に失敗しました。");
+      return;
+    }
+
+    $("cloudStatus").textContent = `クラウド保存済み：${new Date().toLocaleString()}`;
+    alert("クラウドへ保存しました。");
+  }
+
+  async function cloudDownload(){
+    const session = await refreshCloudSessionIfNeeded();
+    if(!session){
+      updateCloudUI();
+      alert("ログインし直してください。");
+      return;
+    }
+
+    $("cloudStatus").textContent = "クラウドを確認中…";
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stamp_card_state?select=state,updated_at&user_id=eq.${encodeURIComponent(session.user_id)}`, {
+      headers:cloudHeaders(session.access_token)
+    });
+
+    if(!res.ok){
+      const text = await res.text();
+      console.error("Cloud download failed:", res.status, text);
+      $("cloudStatus").textContent = "クラウド読込失敗";
+      alert("クラウドからの読み込みに失敗しました。");
+      return;
+    }
+
+    const rows = await res.json();
+    if(!rows.length || !rows[0]?.state){
+      $("cloudStatus").textContent = "クラウドにデータはまだありません";
+      alert("クラウドに保存されたデータはまだありません。\nこの端末から先に「この端末 → クラウド」を押してください。");
+      return;
+    }
+
+    const incoming = normalizeState(rows[0].state);
+    const when = rows[0].updated_at ? new Date(rows[0].updated_at).toLocaleString() : "日時不明";
+    const msg =
+      `クラウドのデータをこの端末へ読み込みますか？\n\n` +
+      `クラウド更新：${when}\n` +
+      `スタンプ：${incoming.quests.length}件\n` +
+      `達成記録：${incoming.completions.length}件\n\n` +
+      `この端末の現在データは上書きされます。`;
+
+    if(!confirm(msg)){
+      updateCloudUI();
+      return;
+    }
+
+    state = incoming;
+    try{
+      await saveState();
+      renderHome();
+      renderCalendar();
+      renderManage();
+      $("cloudStatus").textContent = `クラウドから読込済み：${when}`;
+      alert("クラウドのデータを読み込みました。");
+    }catch(err){
+      console.error(err);
+      $("cloudStatus").textContent = "端末への保存失敗";
+      alert("クラウドデータを端末へ保存できませんでした。");
+    }
+  }
+
+  $("cloudLoginBtn").addEventListener("click",()=>{
+    cloudLogin().catch(err=>{
+      console.error(err);
+      $("cloudStatus").textContent = "通信エラー";
+      alert("ログイン処理で通信エラーが発生しました。");
+    });
+  });
+
+  $("cloudUploadBtn").addEventListener("click",()=>{
+    cloudUpload().catch(err=>{
+      console.error(err);
+      $("cloudStatus").textContent = "通信エラー";
+      alert("クラウド保存中に通信エラーが発生しました。");
+    });
+  });
+
+  $("cloudDownloadBtn").addEventListener("click",()=>{
+    cloudDownload().catch(err=>{
+      console.error(err);
+      $("cloudStatus").textContent = "通信エラー";
+      alert("クラウド読み込み中に通信エラーが発生しました。");
+    });
+  });
+
   function openSettings(){
     if(reorderMode) exitReorderMode();
     renderManage();
@@ -2421,7 +2702,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.6").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.7").catch(console.error);
       });
     }
   }
