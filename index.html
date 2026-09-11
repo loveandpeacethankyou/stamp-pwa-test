@@ -426,11 +426,18 @@
       display:block;
     }
     .monthly-photo-date{
+      display:block;
+      width:100%;
       margin-top:5px;
+      padding:0;
+      border:0;
+      background:transparent;
       text-align:center;
       color:var(--muted);
+      font:inherit;
       font-size:11px;
       line-height:1.2;
+      cursor:pointer;
     }
     .monthly-photo-empty{
       padding:44px 10px;
@@ -957,7 +964,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.11</div>
+    <div class="version">Stamp Card v1.9.13</div>
   </div>
 </div>
 
@@ -1613,6 +1620,141 @@
     });
   }
 
+  function parseExifDateTime(text){
+    const m = String(text || "").trim().match(
+      /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/
+    );
+    if(!m) return null;
+
+    const d = new Date(
+      Number(m[1]),
+      Number(m[2])-1,
+      Number(m[3]),
+      Number(m[4]),
+      Number(m[5]),
+      Number(m[6]),
+      0
+    );
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  async function jpegExifCapturedAt(file){
+    const isJpeg =
+      file.type === "image/jpeg" ||
+      /\.(jpe?g)$/i.test(file.name || "");
+    if(!isJpeg) return null;
+
+    try{
+      const buffer = await file.arrayBuffer();
+      const view = new DataView(buffer);
+      if(view.byteLength < 12 || view.getUint16(0,false) !== 0xFFD8) return null;
+
+      const readAscii = (offset,count)=>{
+        let s = "";
+        for(let i=0;i<count && offset+i<view.byteLength;i++){
+          const c = view.getUint8(offset+i);
+          if(c===0) break;
+          s += String.fromCharCode(c);
+        }
+        return s;
+      };
+
+      let pos = 2;
+      while(pos + 4 <= view.byteLength){
+        if(view.getUint8(pos) !== 0xFF){ pos++; continue; }
+
+        const marker = view.getUint8(pos+1);
+        if(marker === 0xDA || marker === 0xD9) break;
+
+        const len = view.getUint16(pos+2,false);
+        if(len < 2 || pos + 2 + len > view.byteLength) break;
+
+        if(marker === 0xE1 && readAscii(pos+4,6) === "Exif"){
+          const tiff = pos + 10;
+          const byteOrder = view.getUint16(tiff,false);
+          const little = byteOrder === 0x4949;
+          if(!little && byteOrder !== 0x4D4D) return null;
+          if(view.getUint16(tiff+2,little) !== 42) return null;
+
+          const u16 = o => view.getUint16(o,little);
+          const u32 = o => view.getUint32(o,little);
+
+          const readIfd = ifdOffset => {
+            const base = tiff + ifdOffset;
+            if(base + 2 > view.byteLength) return [];
+            const count = u16(base);
+            const entries = [];
+            for(let i=0;i<count;i++){
+              const e = base + 2 + i*12;
+              if(e + 12 > view.byteLength) break;
+              entries.push({
+                tag:u16(e),
+                type:u16(e+2),
+                count:u32(e+4),
+                valueOffset:e+8
+              });
+            }
+            return entries;
+          };
+
+          const readAsciiEntry = entry => {
+            if(entry.type !== 2 || entry.count < 2) return null;
+            let dataOffset;
+            if(entry.count <= 4){
+              dataOffset = entry.valueOffset;
+            }else{
+              dataOffset = tiff + u32(entry.valueOffset);
+            }
+            if(dataOffset < 0 || dataOffset >= view.byteLength) return null;
+            return readAscii(dataOffset,entry.count);
+          };
+
+          const ifd0Offset = u32(tiff+4);
+          const ifd0 = readIfd(ifd0Offset);
+
+          // Prefer DateTimeOriginal / DateTimeDigitized from Exif IFD.
+          const exifPtr = ifd0.find(e=>e.tag===0x8769);
+          if(exifPtr){
+            const exifIfd = readIfd(u32(exifPtr.valueOffset));
+            for(const tag of [0x9003,0x9004]){
+              const entry = exifIfd.find(e=>e.tag===tag);
+              const parsed = entry && parseExifDateTime(readAsciiEntry(entry));
+              if(parsed) return parsed.toISOString();
+            }
+          }
+
+          // Fallback: TIFF DateTime.
+          const dateEntry = ifd0.find(e=>e.tag===0x0132);
+          const parsed = dateEntry && parseExifDateTime(readAsciiEntry(dateEntry));
+          if(parsed) return parsed.toISOString();
+
+          return null;
+        }
+
+        pos += 2 + len;
+      }
+    }catch(err){
+      console.warn("EXIF date read failed:", err);
+    }
+    return null;
+  }
+
+  async function diaryImageCapturedAt(file){
+    // 1) 撮影日時EXIFがあれば最優先。
+    const exif = await jpegExifCapturedAt(file);
+    if(exif) return {capturedAt:exif, capturedAtSource:"exif"};
+
+    // 2) EXIFを取得できない形式では、ファイルの日時を補助情報として使う。
+    if(Number.isFinite(file.lastModified) && file.lastModified > 0){
+      const d = new Date(file.lastModified);
+      if(!Number.isNaN(d.getTime())){
+        return {capturedAt:d.toISOString(), capturedAtSource:"file"};
+      }
+    }
+
+    return {capturedAt:null, capturedAtSource:null};
+  }
+
   async function diaryImageFileToDataURL(file){
     if(!file.type || !file.type.startsWith("image/")){
       throw new Error("画像ファイルを選んでください");
@@ -1721,17 +1863,29 @@
     const items = [];
 
     for(const [dateStr, images] of Object.entries(state.diaryImages || {})){
-      if(!dateStr.startsWith(prefix) || !Array.isArray(images)) continue;
+      if(!Array.isArray(images)) continue;
+
       for(const image of images){
-        if(image?.data){
-          items.push({dateStr,image});
+        if(!image?.data) continue;
+
+        let displayDate = null;
+        if(image.capturedAt){
+          const parsed = new Date(image.capturedAt);
+          if(!Number.isNaN(parsed.getTime())) displayDate = parsed;
         }
+        if(!displayDate) displayDate = parseDate(dateStr);
+
+        const displayDateStr = toDateStr(displayDate);
+        if(!displayDateStr.startsWith(prefix)) continue;
+
+        items.push({dateStr,image,displayDate});
       }
     }
 
     items.sort((a,b)=>{
-      const byDate = a.dateStr.localeCompare(b.dateStr);
-      if(byDate!==0) return byDate;
+      const at = a.displayDate?.getTime?.() || 0;
+      const bt = b.displayDate?.getTime?.() || 0;
+      if(at !== bt) return at - bt;
       return String(a.image.id || "").localeCompare(String(b.image.id || ""));
     });
 
@@ -1744,7 +1898,7 @@
       return;
     }
 
-    for(const {dateStr,image} of items){
+    for(const {dateStr,image,displayDate} of items){
       const item = document.createElement("div");
       item.className = "monthly-photo-item";
 
@@ -1762,10 +1916,26 @@
         openOverlay("photoViewerOverlay");
       });
 
-      const d = parseDate(dateStr);
-      const label = document.createElement("div");
+      const weekdays = ["日","月","火","水","木","金","土"];
+      const label = document.createElement("button");
+      label.type = "button";
       label.className = "monthly-photo-date";
-      label.textContent = `${d.getMonth()+1}/${d.getDate()}`;
+
+      const hasCapturedTime = !!image.capturedAt;
+      const timeText = hasCapturedTime
+        ? `${pad(displayDate.getHours())}:${pad(displayDate.getMinutes())}`
+        : "";
+
+      label.textContent =
+        `${displayDate.getDate()}日（${weekdays[displayDate.getDay()]}）${timeText}`;
+
+      label.addEventListener("click",()=>{
+        // 写真を添付した日の日記へ移動する。
+        selectedDate = dateStr;
+        renderHome();
+        closeOverlay("libraryOverlay");
+        showScreen("home");
+      });
 
       item.append(thumb,label);
       root.appendChild(item);
@@ -2527,8 +2697,14 @@
     try{
       const arr = [...diaryImagesFor(selectedDate)];
       for(const file of files){
+        const capture = await diaryImageCapturedAt(file);
         const data = await diaryImageFileToDataURL(file);
-        arr.push({id:uid("diaryimg"), data});
+        arr.push({
+          id:uid("diaryimg"),
+          data,
+          capturedAt:capture.capturedAt,
+          capturedAtSource:capture.capturedAtSource
+        });
       }
       state.diaryImages[selectedDate] = arr;
       await saveState();
@@ -3200,7 +3376,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.11").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.13").catch(console.error);
       });
     }
   }
