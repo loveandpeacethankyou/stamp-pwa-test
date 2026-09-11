@@ -246,13 +246,15 @@
       font-size:15px;
       line-height:1.22;
       font-weight:800;
-      color:rgba(255,255,255,.80);
+      color:rgba(255,255,255,.64);
       background:transparent;
       border-radius:0;
       white-space:normal;
       overflow:visible;
       text-overflow:clip;
-      text-shadow:none;
+      text-shadow:
+        0 0 3px rgba(158,149,137,.64),
+        0 0 6px rgba(158,149,137,.34);
       box-shadow:none;
       word-break:break-word;
       text-wrap:balance;
@@ -1036,7 +1038,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.22</div>
+    <div class="version">Stamp Card v1.9.23</div>
   </div>
 </div>
 
@@ -3480,7 +3482,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.22").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.23").catch(console.error);
       });
     }
   }
