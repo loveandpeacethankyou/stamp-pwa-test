@@ -367,6 +367,13 @@
       font:inherit;
       font-size:13px;
     }
+    .calendar-month-count{
+      margin-top:6px;
+      text-align:right;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.2;
+    }
     .week-row,.calendar-grid{
       display:grid;
       grid-template-columns:repeat(7,1fr);
@@ -831,6 +838,7 @@
         <select id="calendarStampFilter" aria-label="スタンプで絞り込み">
           <option value="all">すべてのスタンプ</option>
         </select>
+        <div id="calendarMonthCount" class="calendar-month-count"></div>
       </div>
       <div class="week-row">
         <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
@@ -878,7 +886,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.9</div>
+    <div class="version">Stamp Card v1.9.10</div>
   </div>
 </div>
 
@@ -1651,6 +1659,15 @@
     const y = calendarCursor.getFullYear();
     const m = calendarCursor.getMonth();
     $("calendarTitle").textContent = `${y}年 ${m+1}月`;
+
+    const monthPrefix = `${y}-${String(m+1).padStart(2,"0")}-`;
+    const monthCount = state.completions.filter(c=>
+      c.date?.startsWith(monthPrefix) &&
+      questById(c.questId) &&
+      styleById(c.styleId) &&
+      (calendarFilterQuestId==="all" || c.questId===calendarFilterQuestId)
+    ).length;
+    $("calendarMonthCount").textContent = `この月の達成 ${monthCount}回`;
 
     const grid = $("calendarGrid");
     grid.innerHTML = "";
@@ -3012,7 +3029,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.9").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.10").catch(console.error);
       });
     }
   }
