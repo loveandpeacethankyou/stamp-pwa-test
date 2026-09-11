@@ -257,20 +257,14 @@
       box-shadow:none;
       word-break:break-word;
       text-wrap:balance;
+      mix-blend-mode:normal;
     }
     .stamp.on.has-image .stamp-label::before{
-      content:attr(data-label);
-      position:absolute;
-      inset:0;
-      z-index:-1;
-      color:rgba(255,255,255,.30);
-      filter:blur(1.3px);
-      pointer-events:none;
-      mix-blend-mode:normal;
+      content:none;
     }
     .stamp.on.has-image.bright-image-label .stamp-label{
       color:rgba(158,149,137,.54);
-      mix-blend-mode:multiply;
+      mix-blend-mode:normal;
     }
     .empty{
       grid-column:1/-1;
@@ -1060,7 +1054,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.48</div>
+    <div class="version">Stamp Card v1.9.49</div>
   </div>
 </div>
 
@@ -4072,7 +4066,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.48").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.49").catch(console.error);
       });
     }
   }
