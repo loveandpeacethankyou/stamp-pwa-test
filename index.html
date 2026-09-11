@@ -191,17 +191,30 @@
     .stamp:active{transform:scale(.98)}
     .stamp.off{
       font-weight:750;
-      font-size:15px;
-      line-height:1.25;
-      word-break:break-word;
+      color:#9e9589;
     }
     .stamp.on{
       border-style:solid;
       border-color:transparent;
       font-weight:900;
-      font-size:16px;
-      line-height:1.2;
       color:#fff;
+    }
+    .stamp-label{
+      position:relative;
+      z-index:2;
+      display:block;
+      width:100%;
+      text-align:center;
+      font-size:15px;
+      line-height:1.22;
+      font-weight:800;
+      word-break:break-word;
+      text-wrap:balance;
+      padding:0 4px;
+    }
+    .stamp.on .stamp-label{
+      font-size:16px;
+      font-weight:900;
     }
     .stamp.on img{
       width:100%;
@@ -211,21 +224,25 @@
       object-fit:cover;
       border-radius:50%;
     }
-    .stamp-caption{
-      display:inline-block;
-      max-width:calc(100% - 6px);
-      margin-top:6px;
-      padding:3px 8px;
-      border:1px solid rgba(90,75,50,.10);
-      border-radius:999px;
-      background:rgba(255,255,255,.84);
+    .stamp.on.has-image{
+      background:#faf7f1;
       color:var(--ink);
-      font-size:12px;
-      line-height:1.2;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-      box-shadow:0 1px 3px rgba(70,55,35,.06);
+      border-color:#d7cfc4;
+      box-shadow:inset 0 0 0 999px rgba(255,255,255,.16);
+    }
+    .stamp.on.has-image img{
+      opacity:.38;
+      mix-blend-mode:multiply;
+      filter:saturate(.88) brightness(1.04) contrast(.95);
+    }
+    .stamp.on.has-image .stamp-label{
+      color:var(--ink);
+      text-shadow:
+        0 1px 0 rgba(255,255,255,.95),
+        0 -1px 0 rgba(255,255,255,.75),
+        1px 0 0 rgba(255,255,255,.75),
+        -1px 0 0 rgba(255,255,255,.75),
+        0 0 6px rgba(255,255,255,.55);
     }
     .empty{
       grid-column:1/-1;
@@ -1006,7 +1023,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.16</div>
+    <div class="version">Stamp Card v1.9.17</div>
   </div>
 </div>
 
@@ -1419,6 +1436,9 @@
         btn.className = "stamp " + (completion ? "on" : "off");
         btn.setAttribute("aria-label", `${q.name} ${completion ? "達成済み" : "未達成"}`);
 
+        const label = document.createElement("span");
+        label.className = "stamp-label";
+
         if(completion){
           const images = styleImages(style);
           const chosen = completion.chosenImageId
@@ -1426,19 +1446,23 @@
             : images[0];
 
           if(chosen?.data){
+            btn.classList.add("has-image");
             const img = document.createElement("img");
             img.src = chosen.data;
             img.alt = style?.name || q.name;
             img.style.objectPosition = `${chosen.positionX ?? 50}% ${chosen.positionY ?? 50}%`;
             img.style.transform = cropTransform(chosen);
             btn.appendChild(img);
+            label.textContent = q.name;
           } else {
             btn.style.background = style?.color || "#d96c7a";
-            btn.textContent = style?.stampText || style?.name || q.name;
+            label.textContent = style?.stampText || style?.name || q.name;
           }
         } else {
-          btn.textContent = "";
+          label.textContent = q.name;
         }
+
+        btn.appendChild(label);
 
         btn.addEventListener("click", ()=>{
           if(reorderMode) return;
@@ -1447,11 +1471,7 @@
 
         bindReorderGesture(wrap, q);
 
-        const caption = document.createElement("div");
-        caption.className = "stamp-caption";
-        caption.textContent = q.name;
-
-        wrap.append(btn, caption);
+        wrap.append(btn);
         grid.appendChild(wrap);
       }
     }
@@ -3447,7 +3467,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.16").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.17").catch(console.error);
       });
     }
   }
