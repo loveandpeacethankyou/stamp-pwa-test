@@ -191,6 +191,9 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+    .stamp-caption:empty{
+      display:none;
+    }
     .empty{
       grid-column:1/-1;
       align-self:center;
@@ -777,7 +780,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.9.3</div>
+    <div class="version">Stamp Card v1.9.4</div>
   </div>
 </div>
 
@@ -2274,7 +2277,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.3").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.4").catch(console.error);
       });
     }
   }
