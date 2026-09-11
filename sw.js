@@ -1,11 +1,12 @@
-const CACHE = "stamp-card-v1-9-23-image-label-soft-gray";
+const CACHE = "stamp-card-v1-9-24-mechanical-sound";
 const CORE = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-180.png",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./stamp-sound.mp3"
 ];
 
 self.addEventListener("install", event => {
