@@ -242,17 +242,17 @@
       transform:translateX(-50%);
       width:auto;
       max-width:84%;
-      padding:2px 7px;
+      padding:0;
       font-size:11px;
       line-height:1.15;
       font-weight:700;
-      color:rgba(255,255,255,.92);
-      background:rgba(0,0,0,.20);
-      border-radius:999px;
+      color:#9e9589;
+      background:transparent;
+      border-radius:0;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
-      text-shadow:0 1px 2px rgba(0,0,0,.45);
+      text-shadow:none;
       box-shadow:none;
     }
     .empty{
@@ -1034,7 +1034,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.18</div>
+    <div class="version">Stamp Card v1.9.19</div>
   </div>
 </div>
 
@@ -3478,7 +3478,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.18").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.19").catch(console.error);
       });
     }
   }
