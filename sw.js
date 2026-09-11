@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-36-date-nav-volume";
+const CACHE = "stamp-card-v1-9-37-date-nav-clean";
 const CORE = [
   "./",
   "./index.html",
@@ -7,7 +7,7 @@ const CORE = [
   "./icon-192.png",
   "./icon-512.png",
   "./sirense-stamp-v1.wav",
-  "./sirenkurikku-v2.wav"
+  "./sirenkurikku-v3.wav"
 ];
 
 self.addEventListener("install", event => {
