@@ -731,12 +731,12 @@
       <div id="stampGrid" class="stamp-grid"></div>
       <div class="memo">
         <label for="memoInput">スタンプメモ</label>
-        <textarea id="memoInput" placeholder="スタンプについての補足"></textarea>
+        <textarea id="memoInput" placeholder=""></textarea>
       </div>
 
       <div class="memo">
         <label for="diaryInput">日記</label>
-        <textarea id="diaryInput" placeholder="今日の出来事・体調・気分など"></textarea>
+        <textarea id="diaryInput" placeholder=""></textarea>
         <input id="diaryImageInput" type="file" accept="image/*" multiple hidden>
         <div id="diaryImages" class="diary-images"></div>
       </div>
@@ -777,7 +777,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.9.1</div>
+    <div class="version">Stamp Card v1.9.2</div>
   </div>
 </div>
 
@@ -2274,7 +2274,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.1").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.2").catch(console.error);
       });
     }
   }
