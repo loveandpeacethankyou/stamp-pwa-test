@@ -702,6 +702,25 @@
       font-size:11px;
       margin-top:18px;
     }
+    .settings-section{
+      margin-top:20px;
+      padding-top:16px;
+      border-top:1px solid var(--line);
+    }
+    .settings-section h3{
+      font-size:15px;
+      margin:0 0 10px;
+    }
+    .settings-stack{
+      display:grid;
+      gap:8px;
+    }
+    .status-note{
+      font-size:12px;
+      line-height:1.5;
+      color:var(--muted);
+      margin-top:8px;
+    }
   </style>
 </head>
 <body>
@@ -772,7 +791,19 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.10</div>
+
+    <div class="settings-section">
+      <h3>バックアップ</h3>
+      <div class="settings-stack">
+        <button id="exportBackupBtn" type="button" class="secondary full">バックアップを書き出す</button>
+        <button id="importBackupBtn" type="button" class="secondary full">バックアップを読み込む</button>
+        <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
+        <button id="restoreAutoBackupBtn" type="button" class="secondary full">直前の自動バックアップに戻す</button>
+      </div>
+      <div id="backupStatus" class="status-note">保存時に最大5世代の自動バックアップを保持します。</div>
+    </div>
+
+    <div class="version">Stamp Card v1.11</div>
   </div>
 </div>
 
@@ -894,6 +925,7 @@
   const DB_VERSION = 1;
   const STORE = "kv";
   const STATE_KEY = "state";
+  const BACKUP_KEYS = ["backup_1","backup_2","backup_3","backup_4","backup_5"];
 
   let state = null;
   let selectedDate = todayStr();
@@ -983,24 +1015,82 @@
     });
   }
 
-  async function loadState(){
+  async function dbGet(key){
     const db = await openDB();
     return new Promise((resolve,reject)=>{
       const tx = db.transaction(STORE,"readonly");
-      const req = tx.objectStore(STORE).get(STATE_KEY);
-      req.onsuccess = () => resolve(normalizeState(req.result));
-      req.onerror = () => reject(req.error);
+      const req = tx.objectStore(STORE).get(key);
+      req.onsuccess = ()=>resolve(req.result);
+      req.onerror = ()=>reject(req.error);
     });
   }
 
-  async function saveState(){
+  async function dbPut(key,value){
     const db = await openDB();
     return new Promise((resolve,reject)=>{
       const tx = db.transaction(STORE,"readwrite");
-      tx.objectStore(STORE).put(state, STATE_KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.objectStore(STORE).put(value,key);
+      tx.oncomplete = ()=>resolve();
+      tx.onerror = ()=>reject(tx.error);
     });
+  }
+
+  function snapshotEnvelope(data){
+    return {
+      savedAt:new Date().toISOString(),
+      state:(typeof structuredClone==="function")
+        ? structuredClone(data)
+        : JSON.parse(JSON.stringify(data))
+    };
+  }
+
+  function stateLooksDangerouslyEmptied(previous,next){
+    if(!previous || !next) return false;
+
+    const prevQuests = Array.isArray(previous.quests) ? previous.quests.length : 0;
+    const nextQuests = Array.isArray(next.quests) ? next.quests.length : 0;
+    const prevStyles = Array.isArray(previous.styles) ? previous.styles.length : 0;
+    const nextStyles = Array.isArray(next.styles) ? next.styles.length : 0;
+
+    // このアプリではスタンプは「削除」せず終了扱いなので、
+    // quests/styles が突然0件になるのは正常操作では起きない。
+    if(prevQuests > 0 && nextQuests === 0) return true;
+    if(prevStyles > 0 && nextStyles === 0) return true;
+
+    return false;
+  }
+
+  async function rotateAutoBackups(previousState){
+    if(!previousState) return;
+
+    for(let i=BACKUP_KEYS.length-1; i>=1; i--){
+      const older = await dbGet(BACKUP_KEYS[i-1]);
+      if(older !== undefined){
+        await dbPut(BACKUP_KEYS[i], older);
+      }
+    }
+    await dbPut(BACKUP_KEYS[0], snapshotEnvelope(previousState));
+  }
+
+  async function loadState(){
+    const saved = await dbGet(STATE_KEY);
+    return normalizeState(saved);
+  }
+
+  async function saveState(options={}){
+    const previous = await dbGet(STATE_KEY);
+
+    if(!options.allowDestructive && stateLooksDangerouslyEmptied(previous,state)){
+      alert("保存を中止しました。既存スタンプが急に0件になる異常を検出しました。データ保護のため上書きしていません。");
+      throw new Error("Dangerous state overwrite blocked");
+    }
+
+    // 現在の正常データを先に退避してから新しいstateを書き込む
+    if(previous !== undefined){
+      await rotateAutoBackups(previous);
+    }
+
+    await dbPut(STATE_KEY, state);
   }
 
   function styleById(id){
@@ -2187,9 +2277,120 @@
     });
   });
 
+  function downloadJson(filename,obj){
+    const blob = new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }
+
+  async function exportManualBackup(){
+    const payload = {
+      app:"stamp-card",
+      backupVersion:1,
+      exportedAt:new Date().toISOString(),
+      state
+    };
+    downloadJson(`stamp-card-backup-${todayStr()}.json`,payload);
+    $("backupStatus").textContent = "バックアップを書き出しました。";
+  }
+
+  async function importManualBackup(file){
+    const text = await file.text();
+    const payload = JSON.parse(text);
+
+    if(!payload || payload.app!=="stamp-card" || !payload.state){
+      throw new Error("Stamp Card のバックアップファイルではありません");
+    }
+
+    const imported = normalizeState(payload.state);
+    const current = await dbGet(STATE_KEY);
+
+    if(current !== undefined){
+      await rotateAutoBackups(current);
+    }
+
+    state = imported;
+    await dbPut(STATE_KEY,state);
+
+    renderHome();
+    renderCalendar();
+    renderManage();
+    $("backupStatus").textContent = "バックアップを復元しました。";
+  }
+
+  async function restoreLatestAutoBackup(){
+    const backup = await dbGet(BACKUP_KEYS[0]);
+    if(!backup?.state){
+      $("backupStatus").textContent = "自動バックアップはまだありません。";
+      return;
+    }
+
+    if(!confirm("直前の自動バックアップに戻しますか？\n現在の状態はさらに自動バックアップへ退避してから復元します。")) return;
+
+    const current = await dbGet(STATE_KEY);
+    if(current !== undefined){
+      await rotateAutoBackups(current);
+    }
+
+    state = normalizeState(backup.state);
+    await dbPut(STATE_KEY,state);
+
+    renderHome();
+    renderCalendar();
+    renderManage();
+    $("backupStatus").textContent = `復元しました（${backup.savedAt ? new Date(backup.savedAt).toLocaleString() : "日時不明"}）。`;
+  }
+
+  $("exportBackupBtn").addEventListener("click",()=>{
+    exportManualBackup().catch(err=>{
+      console.error(err);
+      $("backupStatus").textContent = "バックアップ書き出しに失敗しました。";
+    });
+  });
+
+  $("importBackupBtn").addEventListener("click",()=>{
+    $("importBackupInput").click();
+  });
+
+  $("importBackupInput").addEventListener("change", async e=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    try{
+      await importManualBackup(file);
+    }catch(err){
+      alert(err.message || "バックアップの読み込みに失敗しました");
+    }
+    e.target.value = "";
+  });
+
+  $("restoreAutoBackupBtn").addEventListener("click",()=>{
+    restoreLatestAutoBackup().catch(err=>{
+      console.error(err);
+      $("backupStatus").textContent = "自動バックアップの復元に失敗しました。";
+    });
+  });
+
   async function init(){
     try{
       state = await loadState();
+
+      const latestBackup = await dbGet(BACKUP_KEYS[0]);
+      if(latestBackup?.state){
+        const bq = Array.isArray(latestBackup.state.quests) ? latestBackup.state.quests.length : 0;
+        const cq = Array.isArray(state.quests) ? state.quests.length : 0;
+        if(bq > 0 && cq === 0){
+          setTimeout(()=>{
+            alert("現在のデータが空ですが、自動バックアップにスタンプが残っています。設定 → バックアップ →「直前の自動バックアップに戻す」から復元できます。");
+          },300);
+        }
+      }
+
       renderHome();
       renderCalendar();
     }catch(err){
@@ -2200,7 +2401,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=11").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=12").catch(console.error);
       });
     }
   }
