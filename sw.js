@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-29-sirense-cachefix";
+const CACHE = "stamp-card-v1-9-30-cloud-debug";
 const CORE = [
   "./",
   "./index.html",

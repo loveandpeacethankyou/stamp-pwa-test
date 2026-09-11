@@ -1038,7 +1038,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.29</div>
+    <div class="version">Stamp Card v1.9.30</div>
   </div>
 </div>
 
@@ -3258,8 +3258,12 @@
     if(!res.ok){
       const text = await res.text();
       console.error("Cloud upload failed:", res.status, text);
-      updateCloudUI("クラウド保存失敗");
-      alert("クラウドへの保存に失敗しました。");
+      updateCloudUI(`クラウド保存失敗（HTTP ${res.status}）`);
+      alert(
+        "クラウドへの保存に失敗しました。\n\n" +
+        `HTTP ${res.status}\n` +
+        (text ? text.slice(0,900) : "応答本文なし")
+      );
       return;
     }
 
@@ -3361,7 +3365,12 @@
       updateCloudUI(`自動同期済み：${new Date(newUpdatedAt).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}`);
     }catch(err){
       console.error(err);
-      updateCloudUI("自動同期できませんでした。手動同期は利用できます");
+      const msg = String(err?.message || err || "");
+      const m = msg.match(/failed\s+(\d{3})/i);
+      updateCloudUI(
+        m ? `自動同期失敗（HTTP ${m[1]}）。手動同期で詳細を確認できます`
+          : "自動同期できませんでした。手動同期で詳細を確認できます"
+      );
     }finally{
       autoCloudBusy = false;
     }
@@ -3526,7 +3535,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.29").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.30").catch(console.error);
       });
     }
   }
