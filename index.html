@@ -803,7 +803,7 @@
       <div id="backupStatus" class="status-note">保存時に最大5世代の自動バックアップを保持します。</div>
     </div>
 
-    <div class="version">Stamp Card v1.11</div>
+    <div class="version">Stamp Card v1.12</div>
   </div>
 </div>
 
@@ -1018,20 +1018,57 @@
   async function dbGet(key){
     const db = await openDB();
     return new Promise((resolve,reject)=>{
-      const tx = db.transaction(STORE,"readonly");
-      const req = tx.objectStore(STORE).get(key);
-      req.onsuccess = ()=>resolve(req.result);
-      req.onerror = ()=>reject(req.error);
+      let result;
+      try{
+        const tx = db.transaction(STORE,"readonly");
+        const req = tx.objectStore(STORE).get(key);
+        req.onsuccess = ()=>{ result = req.result; };
+        req.onerror = ()=>reject(req.error);
+        tx.oncomplete = ()=>{
+          db.close();
+          resolve(result);
+        };
+        tx.onerror = ()=>{
+          const err = tx.error;
+          db.close();
+          reject(err);
+        };
+        tx.onabort = ()=>{
+          const err = tx.error || new Error("IndexedDB transaction aborted");
+          db.close();
+          reject(err);
+        };
+      }catch(err){
+        db.close();
+        reject(err);
+      }
     });
   }
 
   async function dbPut(key,value){
     const db = await openDB();
     return new Promise((resolve,reject)=>{
-      const tx = db.transaction(STORE,"readwrite");
-      tx.objectStore(STORE).put(value,key);
-      tx.oncomplete = ()=>resolve();
-      tx.onerror = ()=>reject(tx.error);
+      try{
+        const tx = db.transaction(STORE,"readwrite");
+        tx.objectStore(STORE).put(value,key);
+        tx.oncomplete = ()=>{
+          db.close();
+          resolve();
+        };
+        tx.onerror = ()=>{
+          const err = tx.error;
+          db.close();
+          reject(err);
+        };
+        tx.onabort = ()=>{
+          const err = tx.error || new Error("IndexedDB transaction aborted");
+          db.close();
+          reject(err);
+        };
+      }catch(err){
+        db.close();
+        reject(err);
+      }
     });
   }
 
@@ -2379,7 +2416,18 @@
   async function init(){
     try{
       state = await loadState();
+    }catch(err){
+      console.error("IndexedDB load failed:", err);
+      alert("データの読み込みに失敗しました。
+この状態では新しいデータを追加しないでください。
 
+" + (err?.name || "") + " " + (err?.message || ""));
+      state = initialState();
+      return;
+    }
+
+    // バックアップ確認に失敗しても、本体データの読み込み成功とは分けて扱う。
+    try{
       const latestBackup = await dbGet(BACKUP_KEYS[0]);
       if(latestBackup?.state){
         const bq = Array.isArray(latestBackup.state.quests) ? latestBackup.state.quests.length : 0;
@@ -2390,18 +2438,24 @@
           },300);
         }
       }
+    }catch(err){
+      console.warn("Backup check failed:", err);
+    }
 
+    try{
       renderHome();
       renderCalendar();
     }catch(err){
-      console.error(err);
-      alert("データの読み込みに失敗しました");
-      state = initialState();
+      console.error("UI init failed:", err);
+      alert("画面の初期化中にエラーが出ました。
+データ自体の読み込みには成功しています。
+
+" + (err?.name || "") + " " + (err?.message || ""));
     }
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=12").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=13").catch(console.error);
       });
     }
   }
