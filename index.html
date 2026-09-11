@@ -1047,7 +1047,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.33</div>
+    <div class="version">Stamp Card v1.9.35</div>
   </div>
 </div>
 
@@ -1950,6 +1950,8 @@
   let stampAudioCtx = null;
   let stampAudioBuffer = null;
   let stampAudioLoadPromise = null;
+  let dateNavAudioBuffer = null;
+  let dateNavAudioLoadPromise = null;
 
   function getStampAudioContext(){
     if(stampAudioCtx) return stampAudioCtx;
@@ -1981,6 +1983,28 @@
     return stampAudioLoadPromise;
   }
 
+  async function preloadDateNavSound(){
+    if(dateNavAudioBuffer) return dateNavAudioBuffer;
+    if(dateNavAudioLoadPromise) return dateNavAudioLoadPromise;
+
+    dateNavAudioLoadPromise = (async ()=>{
+      const ctx = getStampAudioContext();
+      if(!ctx) return null;
+
+      const res = await fetch("./sirenkurikku-v1.wav", {cache:"reload"});
+      if(!res.ok) throw new Error("date nav sound fetch failed");
+      const bytes = await res.arrayBuffer();
+      dateNavAudioBuffer = await ctx.decodeAudioData(bytes);
+      return dateNavAudioBuffer;
+    })().catch(err=>{
+      console.warn("date nav sound preload failed:", err);
+      dateNavAudioLoadPromise = null;
+      return null;
+    });
+
+    return dateNavAudioLoadPromise;
+  }
+
   function playStampSound(){
     try{
       const ctx = getStampAudioContext();
@@ -1988,6 +2012,23 @@
 
       const source = ctx.createBufferSource();
       source.buffer = stampAudioBuffer;
+      source.connect(ctx.destination);
+
+      if(ctx.state === "running"){
+        source.start(0);
+      }else{
+        ctx.resume().then(()=>source.start(0)).catch(()=>{});
+      }
+    }catch(e){}
+  }
+
+  function playDateNavSound(){
+    try{
+      const ctx = getStampAudioContext();
+      if(!ctx || !dateNavAudioBuffer) return;
+
+      const source = ctx.createBufferSource();
+      source.buffer = dateNavAudioBuffer;
       source.connect(ctx.destination);
 
       if(ctx.state === "running"){
@@ -2881,11 +2922,13 @@
   $("photoViewerClose").addEventListener("click",()=>closeOverlay("photoViewerOverlay"));
 
   $("prevDayBtn").onclick = ()=>{
+    playDateNavSound();
     if(reorderMode) exitReorderMode();
     selectedDate = addDays(selectedDate,-1);
     renderHome();
   };
   $("nextDayBtn").onclick = ()=>{
+    playDateNavSound();
     if(reorderMode) exitReorderMode();
     selectedDate = addDays(selectedDate,1);
     renderHome();
@@ -3896,8 +3939,9 @@
 
     updateCloudUI();
 
-    // スタンプSEを先に読み込み・デコードして、タップ時の遅延を減らす。
+    // SEを先に読み込み・デコードして、タップ時の遅延を減らす。
     preloadStampSound().catch(()=>{});
+    preloadDateNavSound().catch(()=>{});
 
     // ローカルの読み込み完了後にだけクラウドを確認する。
     // 端末とクラウドの両方に変更がある場合は自動上書きしない。
@@ -3915,7 +3959,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.33").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.35").catch(console.error);
       });
     }
   }
