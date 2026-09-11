@@ -121,7 +121,36 @@
       box-shadow:var(--shadow);
       padding:18px;
     }
+    .stamp-area{
+      position:relative;
+      margin:-18px -18px 0;
+      padding:18px 18px 11px;
+      border-radius:24px 24px 0 0;
+      overflow:hidden;
+      isolation:isolate;
+    }
+    .stamp-area-bg{
+      position:absolute;
+      inset:0;
+      overflow:hidden;
+      pointer-events:none;
+      z-index:0;
+      background:var(--paper);
+    }
+    .stamp-area-bg img{
+      position:absolute;
+      top:50%;
+      left:50%;
+      height:100%;
+      width:auto;
+      max-width:none;
+      transform:translate(-50%,-50%);
+      opacity:.22;
+      display:block;
+    }
     .stamp-grid{
+      position:relative;
+      z-index:1;
       touch-action:manipulation;
       -webkit-user-select:none;
       user-select:none;
@@ -204,6 +233,9 @@
     }
     .memo{
       margin-top:18px;
+    }
+    .stamp-area + .memo{
+      margin-top:7px;
     }
     .memo + .memo{
       margin-top:7px;
@@ -878,7 +910,12 @@
     </div>
 
     <div class="card">
-      <div id="stampGrid" class="stamp-grid"></div>
+      <div id="stampArea" class="stamp-area">
+        <div id="stampAreaBg" class="stamp-area-bg" hidden>
+          <img id="stampAreaBgImage" alt="">
+        </div>
+        <div id="stampGrid" class="stamp-grid"></div>
+      </div>
       <div class="memo">
         <label for="memoInput">スタンプメモ</label>
         <textarea id="memoInput" placeholder=""></textarea>
@@ -964,7 +1001,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.13</div>
+    <div class="version">Stamp Card v1.9.14</div>
   </div>
 </div>
 
@@ -1324,6 +1361,22 @@
     };
   }
 
+  function renderStampAreaBackground(){
+    const bg = $("stampAreaBg");
+    const img = $("stampAreaBgImage");
+    if(!bg || !img) return;
+
+    const first = diaryImagesFor(selectedDate)[0];
+
+    if(first?.data){
+      img.src = first.data;
+      bg.hidden = false;
+    }else{
+      img.removeAttribute("src");
+      bg.hidden = true;
+    }
+  }
+
   function renderHome(){
     const f = formatHomeDate(selectedDate);
     $("homeDate").textContent = f.date;
@@ -1395,6 +1448,7 @@
     $("reorderBanner").classList.toggle("show", reorderMode);
     $("memoInput").value = state.memos[selectedDate] || "";
     $("diaryInput").value = state.diaries[selectedDate] || "";
+    renderStampAreaBackground();
     renderDiaryImages();
   }
 
@@ -1611,6 +1665,7 @@
         if(arr.length) state.diaryImages[selectedDate] = arr;
         else delete state.diaryImages[selectedDate];
         await saveState();
+        renderStampAreaBackground();
         renderDiaryImages();
         renderCalendar();
       });
@@ -2708,6 +2763,7 @@
       }
       state.diaryImages[selectedDate] = arr;
       await saveState();
+      renderStampAreaBackground();
       renderDiaryImages();
       renderCalendar();
     }catch(err){
@@ -3376,7 +3432,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.13").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.14").catch(console.error);
       });
     }
   }

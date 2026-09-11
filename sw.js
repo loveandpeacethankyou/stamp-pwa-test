@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-13-photo-datetime";
+const CACHE = "stamp-card-v1-9-14-stamp-background";
 const CORE = [
   "./",
   "./index.html",
