@@ -1047,7 +1047,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.32</div>
+    <div class="version">Stamp Card v1.9.33</div>
   </div>
 </div>
 
@@ -3088,9 +3088,44 @@
     };
   }
 
+  function lightweightCloudState(value){
+    const cloned = JSON.parse(JSON.stringify(normalizeState(value)));
+    let missingCloudPath = 0;
+    let stripped = 0;
+
+    for(const style of cloned.styles || []){
+      if(style.imageData){
+        missingCloudPath++;
+      }
+
+      if(Array.isArray(style.images)){
+        for(const image of style.images){
+          if(image?.data){
+            if(!image.cloudPath) missingCloudPath++;
+            delete image.data;
+            stripped++;
+          }
+        }
+      }
+    }
+
+    for(const images of Object.values(cloned.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        if(image?.data){
+          if(!image.cloudPath) missingCloudPath++;
+          delete image.data;
+          stripped++;
+        }
+      }
+    }
+
+    return {cloudState:cloned, missingCloudPath, stripped};
+  }
+
   function stateFingerprint(value){
     try{
-      return JSON.stringify(normalizeState(value));
+      return JSON.stringify(lightweightCloudState(value).cloudState);
     }catch{
       return "";
     }
@@ -3160,8 +3195,10 @@
       return;
     }
 
-    $("cloudStatus").textContent =
-      `ログイン中：${session.email || "ユーザー"} ／ 手動同期（軽量化確認中）`;
+    const meta = getCloudMeta(session.user_id);
+    $("cloudStatus").textContent = meta.dirty
+      ? `ログイン中：${session.email || "ユーザー"} ／ 同期待ち`
+      : `ログイン中：${session.email || "ユーザー"} ／ 自動同期ON`;
   }
 
   async function fetchCloudRow(session, includeState=true){
@@ -3244,39 +3281,7 @@
   }
 
   function cloudStateWithoutImageData(){
-    const cloned = JSON.parse(JSON.stringify(state));
-    let missingCloudPath = 0;
-    let stripped = 0;
-
-    for(const style of cloned.styles || []){
-      if(style.imageData){
-        // 旧形式の画像は巨大JSONに残さない。旧形式がまだある場合は保存を止める。
-        missingCloudPath++;
-      }
-
-      if(Array.isArray(style.images)){
-        for(const image of style.images){
-          if(image?.data){
-            if(!image.cloudPath) missingCloudPath++;
-            delete image.data;
-            stripped++;
-          }
-        }
-      }
-    }
-
-    for(const images of Object.values(cloned.diaryImages || {})){
-      if(!Array.isArray(images)) continue;
-      for(const image of images){
-        if(image?.data){
-          if(!image.cloudPath) missingCloudPath++;
-          delete image.data;
-          stripped++;
-        }
-      }
-    }
-
-    return {cloudState:cloned, missingCloudPath, stripped};
+    return lightweightCloudState(state);
   }
 
   async function blobToDataUrl(blob){
@@ -3330,18 +3335,77 @@
     return items;
   }
 
+  function localImageDataByCloudPath(){
+    const map = new Map();
+
+    for(const style of state.styles || []){
+      if(!Array.isArray(style.images)) continue;
+      for(const image of style.images){
+        if(image?.cloudPath && image?.data){
+          map.set(image.cloudPath, image.data);
+        }
+      }
+    }
+
+    for(const images of Object.values(state.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        if(image?.cloudPath && image?.data){
+          map.set(image.cloudPath, image.data);
+        }
+      }
+    }
+
+    return map;
+  }
+
   async function hydrateCloudImages(incoming, session){
     const items = collectCloudImagesNeedingDownload(incoming);
     if(!items.length) return incoming;
 
-    for(let i=0;i<items.length;i++){
+    const localCache = localImageDataByCloudPath();
+    const needDownload = [];
+
+    for(const item of items){
+      const cached = localCache.get(item.image.cloudPath);
+      if(cached){
+        item.image.data = cached;
+      }else{
+        needDownload.push(item);
+      }
+    }
+
+    for(let i=0;i<needDownload.length;i++){
       $("cloudStatus").textContent =
-        `Storage画像を取得中… ${i+1} / ${items.length}`;
-      items[i].image.data =
-        await downloadStorageImageAsDataUrl(session, items[i].image.cloudPath);
+        `Storage画像を取得中… ${i+1} / ${needDownload.length}`;
+      needDownload[i].image.data =
+        await downloadStorageImageAsDataUrl(session, needDownload[i].image.cloudPath);
     }
 
     return incoming;
+  }
+
+  async function ensureAllImagesInStorage(session){
+    const items = collectLocalImagesForMigration(session.user_id);
+    if(!items.length) return 0;
+
+    for(let i=0;i<items.length;i++){
+      const item = items[i];
+      const blob = dataUrlToBlob(item.image.data);
+      const ext = extensionForMime(blob.type);
+      const path = `${item.basePath}.${ext}`;
+
+      $("cloudStatus").textContent =
+        `新しい画像をStorageへ保存中… ${i+1} / ${items.length}`;
+
+      await uploadImageBlobToStorage(session, path, blob);
+      item.image.cloudPath = path;
+
+      // cloudPathだけ端末に確実に保存。自動同期は再帰させない。
+      await saveState({fromCloud:true});
+    }
+
+    return items.length;
   }
 
   async function forceCloudUpload(){
@@ -3352,12 +3416,21 @@
       return;
     }
 
+    try{
+      await ensureAllImagesInStorage(session);
+    }catch(err){
+      console.error(err);
+      updateCloudUI("画像Storage保存失敗");
+      alert(
+        "新しい画像をStorageへ保存できませんでした。\n\n" +
+        String(err?.message || err).slice(0,800)
+      );
+      return;
+    }
+
     const prepared = cloudStateWithoutImageData();
     if(prepared.missingCloudPath > 0){
-      alert(
-        `Storage未移行の画像が ${prepared.missingCloudPath}件あります。\n\n` +
-        `先に「既存画像をStorageへコピー」をもう一度押してください。`
-      );
+      alert("Storage未移行の旧形式画像が残っています。画像Storage移行を実行してください。");
       return;
     }
 
@@ -3459,6 +3532,14 @@
     try{
       updateCloudUI("自動同期中…");
 
+      await ensureAllImagesInStorage(session);
+      const prepared = cloudStateWithoutImageData();
+
+      if(prepared.missingCloudPath > 0){
+        updateCloudUI("⚠︎ Storage未移行の画像があり、自動同期を停止しました");
+        return;
+      }
+
       // updated_at が前回同期時刻と一致する行だけ更新する。
       // 他端末が先に更新していた場合は0件になり、上書きしない。
       const newUpdatedAt = new Date().toISOString();
@@ -3474,7 +3555,7 @@
           "Prefer":"return=representation"
         }),
         body:JSON.stringify({
-          state,
+          state:prepared.cloudState,
           updated_at:newUpdatedAt
         })
       });
@@ -3506,9 +3587,13 @@
   }
 
   function scheduleAutoCloudPush(){
-    // 画像Storage移行中の暫定版では、巨大JSONの自動送信を停止する。
-    // 次版で画像dataをクラウドpayloadから外した後に再開する。
-    return;
+    const session = getCloudSession();
+    if(!session?.user_id) return;
+
+    clearTimeout(autoCloudTimer);
+    autoCloudTimer = setTimeout(()=>{
+      autoCloudPush().catch(console.error);
+    }, 1800);
   }
 
   async function autoCloudSyncCheck(force=false){
@@ -3545,7 +3630,8 @@
         }
 
         if(stateIsEmpty(state) && !stateIsEmpty(row.state)){
-          await saveIncomingCloudState(row.state, row.updated_at);
+          const hydrated = await hydrateCloudImages(normalizeState(row.state), session);
+          await saveIncomingCloudState(hydrated, row.updated_at);
           updateCloudUI("クラウドから自動で読み込みました");
           return;
         }
@@ -3571,7 +3657,8 @@
         return;
       }
 
-      await saveIncomingCloudState(row.state, row.updated_at);
+      const hydrated = await hydrateCloudImages(normalizeState(row.state), session);
+      await saveIncomingCloudState(hydrated, row.updated_at);
       updateCloudUI("クラウドの新しいデータを自動反映しました");
     }catch(err){
       console.error(err);
@@ -3815,12 +3902,20 @@
     // ローカルの読み込み完了後にだけクラウドを確認する。
     // 端末とクラウドの両方に変更がある場合は自動上書きしない。
     if(getCloudSession()){
-      updateCloudUI("軽量クラウド同期の確認中：自動同期は一時停止中");
+      setTimeout(()=>autoCloudSyncCheck(true).catch(console.error), 250);
     }
+
+    window.addEventListener("focus",()=>{
+      autoCloudSyncCheck(false).catch(console.error);
+    });
+
+    window.addEventListener("online",()=>{
+      autoCloudSyncCheck(true).catch(console.error);
+    });
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.32").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.33").catch(console.error);
       });
     }
   }
