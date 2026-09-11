@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-50-visible-soft-outline";
+const CACHE = "stamp-card-v1-9-51-outline-thicker";
 const CORE = [
   "./",
   "./index.html",
