@@ -1066,7 +1066,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.53</div>
+    <div class="version">Stamp Card v1.9.54</div>
   </div>
 </div>
 
@@ -1435,7 +1435,7 @@
 
   function stopStampAreaBackgroundSlideshow(){
     if(stampBgSlideshowTimer){
-      clearInterval(stampBgSlideshowTimer);
+      clearTimeout(stampBgSlideshowTimer);
       stampBgSlideshowTimer = null;
     }
   }
@@ -1549,24 +1549,40 @@
     if(images.length <= 1) return;
 
     const slideshowDate = selectedDate;
-    stampBgSlideshowTimer = setInterval(()=>{
-      if(selectedDate !== slideshowDate) return;
+    const HOLD_MS = 8000;
+    const CROSSFADE_MS = 2400;
 
-      const currentImages = stampBackgroundImages(slideshowDate);
-      if(currentImages.length <= 1){
-        renderStampAreaBackground();
-        return;
-      }
+    const scheduleNextBackground = (delay)=>{
+      stampBgSlideshowTimer = setTimeout(()=>{
+        if(selectedDate !== slideshowDate){
+          stampBgSlideshowTimer = null;
+          return;
+        }
 
-      const currentSignature = stampBackgroundSignature(currentImages);
-      if(currentSignature !== stampBgSignature){
-        renderStampAreaBackground();
-        return;
-      }
+        const currentImages = stampBackgroundImages(slideshowDate);
+        if(currentImages.length <= 1){
+          stampBgSlideshowTimer = null;
+          renderStampAreaBackground();
+          return;
+        }
 
-      stampBgIndex = (stampBgIndex + 1) % currentImages.length;
-      crossfadeStampBackground(currentImages[stampBgIndex].data);
-    }, 5000);
+        const currentSignature = stampBackgroundSignature(currentImages);
+        if(currentSignature !== stampBgSignature){
+          stampBgSlideshowTimer = null;
+          renderStampAreaBackground();
+          return;
+        }
+
+        stampBgIndex = (stampBgIndex + 1) % currentImages.length;
+        crossfadeStampBackground(currentImages[stampBgIndex].data);
+
+        // クロスフェード完了後、次の画像を約8秒しっかり見せる。
+        scheduleNextBackground(HOLD_MS + CROSSFADE_MS);
+      }, delay);
+    };
+
+    // 最初の一枚も約8秒表示してから切り替える。
+    scheduleNextBackground(HOLD_MS);
   }
 
   const brightStampImageCache = new Map();
@@ -4205,7 +4221,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.53").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.54").catch(console.error);
       });
     }
   }

@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-53-background-crossfade";
+const CACHE = "stamp-card-v1-9-54-background-hold-8s";
 const CORE = [
   "./",
   "./index.html",
