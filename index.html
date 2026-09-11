@@ -147,6 +147,8 @@
       transform:translate(-50%,-50%);
       opacity:.22;
       display:block;
+      transition:opacity .65s ease;
+      will-change:opacity;
     }
     .stamp-grid{
       position:relative;
@@ -1063,7 +1065,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.51</div>
+    <div class="version">Stamp Card v1.9.52</div>
   </div>
 </div>
 
@@ -1424,20 +1426,116 @@
     };
   }
 
+  let stampBgSlideshowTimer = null;
+  let stampBgFadeTimer = null;
+  let stampBgIndex = 0;
+  let stampBgDate = null;
+  let stampBgSignature = "";
+
+  function stopStampAreaBackgroundSlideshow(){
+    if(stampBgSlideshowTimer){
+      clearInterval(stampBgSlideshowTimer);
+      stampBgSlideshowTimer = null;
+    }
+    if(stampBgFadeTimer){
+      clearTimeout(stampBgFadeTimer);
+      stampBgFadeTimer = null;
+    }
+  }
+
+  function stampBackgroundImages(dateStr){
+    return diaryImagesFor(dateStr).filter(image=>image?.data);
+  }
+
+  function stampBackgroundSignature(images){
+    return images.map(image=>`${image.id || ""}:${image.data?.length || 0}`).join("|");
+  }
+
   function renderStampAreaBackground(){
     const bg = $("stampAreaBg");
     const img = $("stampAreaBgImage");
     if(!bg || !img) return;
 
-    const first = diaryImagesFor(selectedDate)[0];
+    const images = stampBackgroundImages(selectedDate);
+    const signature = stampBackgroundSignature(images);
 
-    if(first?.data){
-      img.src = first.data;
-      bg.hidden = false;
-    }else{
+    if(!images.length){
+      stopStampAreaBackgroundSlideshow();
+      stampBgDate = selectedDate;
+      stampBgSignature = "";
+      stampBgIndex = 0;
+      img.style.opacity = "0";
       img.removeAttribute("src");
       bg.hidden = true;
+      return;
     }
+
+    const sameSet = stampBgDate === selectedDate && stampBgSignature === signature;
+
+    // スタンプを押してホームが再描画されても、同じ日の同じ画像なら
+    // スライドショー位置と5秒タイマーはそのまま維持する。
+    if(sameSet && stampBgSlideshowTimer){
+      bg.hidden = false;
+      return;
+    }
+
+    stopStampAreaBackgroundSlideshow();
+
+    if(!sameSet){
+      stampBgIndex = 0;
+    }else{
+      stampBgIndex = Math.min(stampBgIndex, images.length - 1);
+    }
+
+    stampBgDate = selectedDate;
+    stampBgSignature = signature;
+    bg.hidden = false;
+    img.style.opacity = "0";
+    img.src = images[stampBgIndex].data;
+
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        img.style.opacity = ".22";
+      });
+    });
+
+    if(images.length <= 1) return;
+
+    const slideshowDate = selectedDate;
+
+    stampBgSlideshowTimer = setInterval(()=>{
+      if(selectedDate !== slideshowDate) return;
+
+      const currentImages = stampBackgroundImages(slideshowDate);
+      if(currentImages.length <= 1){
+        renderStampAreaBackground();
+        return;
+      }
+
+      const currentSignature = stampBackgroundSignature(currentImages);
+      if(currentSignature !== stampBgSignature){
+        renderStampAreaBackground();
+        return;
+      }
+
+      // まず現在の画像をフェードアウト。
+      img.style.opacity = "0";
+
+      if(stampBgFadeTimer) clearTimeout(stampBgFadeTimer);
+      stampBgFadeTimer = setTimeout(()=>{
+        if(selectedDate !== slideshowDate) return;
+
+        stampBgIndex = (stampBgIndex + 1) % currentImages.length;
+        img.src = currentImages[stampBgIndex].data;
+
+        // 画像を差し替えてからフェードイン。
+        requestAnimationFrame(()=>{
+          requestAnimationFrame(()=>{
+            img.style.opacity = ".22";
+          });
+        });
+      }, 650);
+    }, 5000);
   }
 
   const brightStampImageCache = new Map();
@@ -2406,6 +2504,7 @@
   function showScreen(name){
     if(name!=="home" && reorderMode) exitReorderMode();
     const home = name==="home";
+    if(!home) stopStampAreaBackgroundSlideshow();
     $("homeScreen").classList.toggle("active",home);
     $("calendarScreen").classList.toggle("active",!home);
     $("homeNav").classList.toggle("active",home);
@@ -4075,7 +4174,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.51").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.52").catch(console.error);
       });
     }
   }
