@@ -1038,7 +1038,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.27</div>
+    <div class="version">Stamp Card v1.9.28</div>
   </div>
 </div>
 
@@ -1896,6 +1896,7 @@
 
     if(existing){
       state.completions = state.completions.filter(c=>c.id!==existing.id);
+      playStampSound();
       await saveState();
       renderHome();
       renderCalendar();
@@ -3525,7 +3526,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.27").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.28").catch(console.error);
       });
     }
   }

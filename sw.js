@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-27-uploaded-sound";
+const CACHE = "stamp-card-v1-9-28-sound-both-toggle";
 const CORE = [
   "./",
   "./index.html",
