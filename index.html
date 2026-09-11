@@ -50,8 +50,8 @@
       display:grid;
       grid-template-columns:44px 1fr 44px;
       align-items:center;
-      min-height:44px;
-      margin-bottom:2px;
+      min-height:48px;
+      margin-bottom:8px;
     }
     .topbar h1{
       text-align:center;
@@ -76,8 +76,8 @@
       display:grid;
       grid-template-columns:48px 1fr 48px;
       align-items:center;
-      gap:6px;
-      margin:4px 0 8px;
+      gap:8px;
+      margin:8px 0 18px;
     }
     .date-main{
       text-align:center;
@@ -91,7 +91,7 @@
     .date-main .weekday{
       color:var(--muted);
       font-size:14px;
-      margin-top:2px;
+      margin-top:5px;
     }
     .round-btn{
       width:46px;
@@ -104,8 +104,8 @@
     }
     .today-btn{
       display:block;
-      margin:0 auto 8px;
-      padding:4px 10px;
+      margin:0 auto 16px;
+      padding:5px 10px;
       border:0;
       background:transparent;
       color:var(--muted);
@@ -116,7 +116,7 @@
       border:1px solid rgba(90,75,50,.08);
       border-radius:24px;
       box-shadow:var(--shadow);
-      padding:16px;
+      padding:18px;
     }
     .stamp-grid{
       touch-action:manipulation;
@@ -278,6 +278,14 @@
       padding:0;
     }
     .day{position:relative}
+    .day-photo-indicator{
+      position:absolute;
+      top:6px;
+      right:5px;
+      font-size:10px;
+      line-height:1;
+      opacity:.7;
+    }
     .photo-viewer-overlay{
       z-index:90;
       align-items:center;
@@ -351,25 +359,10 @@
     .day.out{opacity:.18}
     .day.today{outline:1px solid #bdb4aa}
     .day.selected{background:#ebe4da}
-    .day-head{
-      display:flex;
-      align-items:center;
-      gap:4px;
-      margin-left:2px;
-      margin-bottom:5px;
-      min-height:14px;
-    }
     .day-num{
       font-size:12px;
-      line-height:1;
-    }
-    .day-photo-icon{
-      width:12px;
-      height:12px;
-      color:var(--muted);
-      opacity:.72;
-      flex:0 0 auto;
-      display:block;
+      margin-left:2px;
+      margin-bottom:5px;
     }
     .mini-stamps{
       display:grid;
@@ -702,25 +695,6 @@
       font-size:11px;
       margin-top:18px;
     }
-    .settings-section{
-      margin-top:20px;
-      padding-top:16px;
-      border-top:1px solid var(--line);
-    }
-    .settings-section h3{
-      font-size:15px;
-      margin:0 0 10px;
-    }
-    .settings-stack{
-      display:grid;
-      gap:8px;
-    }
-    .status-note{
-      font-size:12px;
-      line-height:1.5;
-      color:var(--muted);
-      margin-top:8px;
-    }
   </style>
 </head>
 <body>
@@ -741,6 +715,12 @@
       <button id="nextDayBtn" class="round-btn" aria-label="次の日">›</button>
     </div>
     <button id="todayBtn" class="today-btn">今日に戻る</button>
+
+    <div id="reorderBanner" class="reorder-banner">
+      <span>スタンプをドラッグして並べ替え</span>
+      <button id="reorderDoneBtn" type="button">完了</button>
+    </div>
+
     <div class="card">
       <div id="stampGrid" class="stamp-grid"></div>
       <div class="memo">
@@ -791,19 +771,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-
-    <div class="settings-section">
-      <h3>バックアップ</h3>
-      <div class="settings-stack">
-        <button id="exportBackupBtn" type="button" class="secondary full">バックアップを書き出す</button>
-        <button id="importBackupBtn" type="button" class="secondary full">バックアップを読み込む</button>
-        <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
-        <button id="restoreAutoBackupBtn" type="button" class="secondary full">直前の自動バックアップに戻す</button>
-      </div>
-      <div id="backupStatus" class="status-note">保存時に最大5世代の自動バックアップを保持します。</div>
-    </div>
-
-    <div class="version">Stamp Card v1.12</div>
+    <div class="version">Stamp Card v1.9</div>
   </div>
 </div>
 
@@ -925,7 +893,6 @@
   const DB_VERSION = 1;
   const STORE = "kv";
   const STATE_KEY = "state";
-  const BACKUP_KEYS = ["backup_1","backup_2","backup_3","backup_4","backup_5"];
 
   let state = null;
   let selectedDate = todayStr();
@@ -1015,119 +982,24 @@
     });
   }
 
-  async function dbGet(key){
-    const db = await openDB();
-    return new Promise((resolve,reject)=>{
-      let result;
-      try{
-        const tx = db.transaction(STORE,"readonly");
-        const req = tx.objectStore(STORE).get(key);
-        req.onsuccess = ()=>{ result = req.result; };
-        req.onerror = ()=>reject(req.error);
-        tx.oncomplete = ()=>{
-          db.close();
-          resolve(result);
-        };
-        tx.onerror = ()=>{
-          const err = tx.error;
-          db.close();
-          reject(err);
-        };
-        tx.onabort = ()=>{
-          const err = tx.error || new Error("IndexedDB transaction aborted");
-          db.close();
-          reject(err);
-        };
-      }catch(err){
-        db.close();
-        reject(err);
-      }
-    });
-  }
-
-  async function dbPut(key,value){
-    const db = await openDB();
-    return new Promise((resolve,reject)=>{
-      try{
-        const tx = db.transaction(STORE,"readwrite");
-        tx.objectStore(STORE).put(value,key);
-        tx.oncomplete = ()=>{
-          db.close();
-          resolve();
-        };
-        tx.onerror = ()=>{
-          const err = tx.error;
-          db.close();
-          reject(err);
-        };
-        tx.onabort = ()=>{
-          const err = tx.error || new Error("IndexedDB transaction aborted");
-          db.close();
-          reject(err);
-        };
-      }catch(err){
-        db.close();
-        reject(err);
-      }
-    });
-  }
-
-  function snapshotEnvelope(data){
-    return {
-      savedAt:new Date().toISOString(),
-      state:(typeof structuredClone==="function")
-        ? structuredClone(data)
-        : JSON.parse(JSON.stringify(data))
-    };
-  }
-
-  function stateLooksDangerouslyEmptied(previous,next){
-    if(!previous || !next) return false;
-
-    const prevQuests = Array.isArray(previous.quests) ? previous.quests.length : 0;
-    const nextQuests = Array.isArray(next.quests) ? next.quests.length : 0;
-    const prevStyles = Array.isArray(previous.styles) ? previous.styles.length : 0;
-    const nextStyles = Array.isArray(next.styles) ? next.styles.length : 0;
-
-    // このアプリではスタンプは「削除」せず終了扱いなので、
-    // quests/styles が突然0件になるのは正常操作では起きない。
-    if(prevQuests > 0 && nextQuests === 0) return true;
-    if(prevStyles > 0 && nextStyles === 0) return true;
-
-    return false;
-  }
-
-  async function rotateAutoBackups(previousState){
-    if(!previousState) return;
-
-    for(let i=BACKUP_KEYS.length-1; i>=1; i--){
-      const older = await dbGet(BACKUP_KEYS[i-1]);
-      if(older !== undefined){
-        await dbPut(BACKUP_KEYS[i], older);
-      }
-    }
-    await dbPut(BACKUP_KEYS[0], snapshotEnvelope(previousState));
-  }
-
   async function loadState(){
-    const saved = await dbGet(STATE_KEY);
-    return normalizeState(saved);
+    const db = await openDB();
+    return new Promise((resolve,reject)=>{
+      const tx = db.transaction(STORE,"readonly");
+      const req = tx.objectStore(STORE).get(STATE_KEY);
+      req.onsuccess = () => resolve(normalizeState(req.result));
+      req.onerror = () => reject(req.error);
+    });
   }
 
-  async function saveState(options={}){
-    const previous = await dbGet(STATE_KEY);
-
-    if(!options.allowDestructive && stateLooksDangerouslyEmptied(previous,state)){
-      alert("保存を中止しました。既存スタンプが急に0件になる異常を検出しました。データ保護のため上書きしていません。");
-      throw new Error("Dangerous state overwrite blocked");
-    }
-
-    // 現在の正常データを先に退避してから新しいstateを書き込む
-    if(previous !== undefined){
-      await rotateAutoBackups(previous);
-    }
-
-    await dbPut(STATE_KEY, state);
+  async function saveState(){
+    const db = await openDB();
+    return new Promise((resolve,reject)=>{
+      const tx = db.transaction(STORE,"readwrite");
+      tx.objectStore(STORE).put(state, STATE_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   function styleById(id){
@@ -1240,7 +1112,7 @@
     const f = formatHomeDate(selectedDate);
     $("homeDate").textContent = f.date;
     $("homeWeekday").textContent = f.weekday;
-    $("todayBtn").style.display = selectedDate===todayStr() ? "none" : "block";
+    $("todayBtn").style.visibility = selectedDate===todayStr() ? "hidden" : "visible";
 
     const grid = $("stampGrid");
     grid.innerHTML = "";
@@ -1304,6 +1176,7 @@
       }
     }
 
+    $("reorderBanner").classList.toggle("show", reorderMode);
     $("memoInput").value = state.memos[selectedDate] || "";
     $("diaryInput").value = state.diaries[selectedDate] || "";
     renderDiaryImages();
@@ -1441,7 +1314,6 @@
 
     if(!draggedId || !targetId || draggedId===targetId){
       clearReorderDragVisuals();
-      exitReorderMode();
       return;
     }
 
@@ -1450,12 +1322,12 @@
     let targetIndex = newVisible.indexOf(targetId);
     if(targetIndex < 0){
       clearReorderDragVisuals();
-      exitReorderMode();
       return;
     }
     if(reorderDropSide==="after") targetIndex += 1;
     newVisible.splice(targetIndex,0,draggedId);
 
+    // 対象外日のスタンプは位置を保ち、今日表示されるスタンプだけ差し替える
     const allOrdered = [...state.quests]
       .sort((a,b)=>(a.order??0)-(b.order??0))
       .map(q=>q.id);
@@ -1471,7 +1343,96 @@
 
     await saveState();
     clearReorderDragVisuals();
-    exitReorderMode();
+    renderHome();
+  }
+
+  function diaryImagesFor(dateStr){
+    const arr = state.diaryImages?.[dateStr];
+    return Array.isArray(arr) ? arr : [];
+  }
+
+  function renderDiaryImages(){
+    const root = $("diaryImages");
+    root.innerHTML = "";
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "diary-image-add";
+    add.textContent = "＋";
+    add.setAttribute("aria-label","日記に画像を追加");
+    add.addEventListener("click",()=>$("diaryImageInput").click());
+    root.appendChild(add);
+
+    diaryImagesFor(selectedDate).forEach((image,index)=>{
+      const item = document.createElement("div");
+      item.className = "diary-image-item";
+
+      const thumb = document.createElement("button");
+      thumb.type = "button";
+      thumb.className = "diary-image-thumb";
+      thumb.setAttribute("aria-label",`日記画像${index+1}を拡大`);
+
+      const img = document.createElement("img");
+      img.src = image.data;
+      img.alt = `日記画像 ${index+1}`;
+      thumb.appendChild(img);
+
+      thumb.addEventListener("click",()=>{
+        $("photoViewerImage").src = image.data;
+        openOverlay("photoViewerOverlay");
+      });
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "diary-image-remove";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label",`日記画像${index+1}を削除`);
+      remove.addEventListener("click", async e=>{
+        e.stopPropagation();
+        const arr = diaryImagesFor(selectedDate).filter(x=>x.id!==image.id);
+        if(arr.length) state.diaryImages[selectedDate] = arr;
+        else delete state.diaryImages[selectedDate];
+        await saveState();
+        renderDiaryImages();
+        renderCalendar();
+      });
+
+      item.append(thumb,remove);
+      root.appendChild(item);
+    });
+  }
+
+  async function diaryImageFileToDataURL(file){
+    if(!file.type || !file.type.startsWith("image/")){
+      throw new Error("画像ファイルを選んでください");
+    }
+
+    const raw = await new Promise((resolve,reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>resolve(reader.result);
+      reader.onerror = ()=>reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+    const img = await new Promise((resolve,reject)=>{
+      const im = new Image();
+      im.onload = ()=>resolve(im);
+      im.onerror = ()=>reject(new Error("画像を読み込めませんでした"));
+      im.src = raw;
+    });
+
+    const max = 1280;
+    const scale = Math.min(1, max/Math.max(img.width,img.height));
+    const w = Math.max(1,Math.round(img.width*scale));
+    const h = Math.max(1,Math.round(img.height*scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img,0,0,w,h);
+
+    const webp = canvas.toDataURL("image/webp",.82);
+    return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg",.84);
   }
 
   async function toggleCompletion(q,dateStr){
@@ -1559,38 +1520,15 @@
       if(ds===todayStr()) btn.classList.add("today");
       if(ds===selectedDate) btn.classList.add("selected");
 
-      const dayHead = document.createElement("div");
-      dayHead.className = "day-head";
-
       const num = document.createElement("div");
       num.className = "day-num";
       num.textContent = d.getDate();
-      dayHead.appendChild(num);
 
       if(diaryImagesFor(ds).length){
-        const photoMark = document.createElementNS("http://www.w3.org/2000/svg","svg");
-        photoMark.setAttribute("viewBox","0 0 24 24");
-        photoMark.setAttribute("aria-hidden","true");
-        photoMark.classList.add("day-photo-icon");
-
-        const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-        path.setAttribute("d","M4.5 7.5h3l1.4-2h6.2l1.4 2h3A1.5 1.5 0 0 1 21 9v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17V9a1.5 1.5 0 0 1 1.5-1.5Z");
-        path.setAttribute("fill","none");
-        path.setAttribute("stroke","currentColor");
-        path.setAttribute("stroke-width","1.8");
-        path.setAttribute("stroke-linecap","round");
-        path.setAttribute("stroke-linejoin","round");
-
-        const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
-        circle.setAttribute("cx","12");
-        circle.setAttribute("cy","13");
-        circle.setAttribute("r","3.1");
-        circle.setAttribute("fill","none");
-        circle.setAttribute("stroke","currentColor");
-        circle.setAttribute("stroke-width","1.8");
-
-        photoMark.append(path,circle);
-        dayHead.appendChild(photoMark);
+        const photoMark = document.createElement("span");
+        photoMark.className = "day-photo-indicator";
+        photoMark.textContent = "📷";
+        btn.appendChild(photoMark);
       }
 
       const minis = document.createElement("div");
@@ -1627,7 +1565,7 @@
         minis.appendChild(more);
       }
 
-      btn.append(dayHead,minis);
+      btn.append(num,minis);
       btn.addEventListener("click",()=>{
         selectedDate = ds;
         showScreen("home");
@@ -2285,6 +2223,7 @@
 
   $("homeNav").onclick = ()=>showScreen("home");
   $("calendarNav").onclick = ()=>showScreen("calendar");
+  $("reorderDoneBtn").onclick = exitReorderMode;
 
   $("newQuestFromSettings").onclick = ()=>{
     closeOverlay("settingsOverlay");
@@ -2314,148 +2253,20 @@
     });
   });
 
-  function downloadJson(filename,obj){
-    const blob = new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
-  }
-
-  async function exportManualBackup(){
-    const payload = {
-      app:"stamp-card",
-      backupVersion:1,
-      exportedAt:new Date().toISOString(),
-      state
-    };
-    downloadJson(`stamp-card-backup-${todayStr()}.json`,payload);
-    $("backupStatus").textContent = "バックアップを書き出しました。";
-  }
-
-  async function importManualBackup(file){
-    const text = await file.text();
-    const payload = JSON.parse(text);
-
-    if(!payload || payload.app!=="stamp-card" || !payload.state){
-      throw new Error("Stamp Card のバックアップファイルではありません");
-    }
-
-    const imported = normalizeState(payload.state);
-    const current = await dbGet(STATE_KEY);
-
-    if(current !== undefined){
-      await rotateAutoBackups(current);
-    }
-
-    state = imported;
-    await dbPut(STATE_KEY,state);
-
-    renderHome();
-    renderCalendar();
-    renderManage();
-    $("backupStatus").textContent = "バックアップを復元しました。";
-  }
-
-  async function restoreLatestAutoBackup(){
-    const backup = await dbGet(BACKUP_KEYS[0]);
-    if(!backup?.state){
-      $("backupStatus").textContent = "自動バックアップはまだありません。";
-      return;
-    }
-
-    if(!confirm("直前の自動バックアップに戻しますか？\n現在の状態はさらに自動バックアップへ退避してから復元します。")) return;
-
-    const current = await dbGet(STATE_KEY);
-    if(current !== undefined){
-      await rotateAutoBackups(current);
-    }
-
-    state = normalizeState(backup.state);
-    await dbPut(STATE_KEY,state);
-
-    renderHome();
-    renderCalendar();
-    renderManage();
-    $("backupStatus").textContent = `復元しました（${backup.savedAt ? new Date(backup.savedAt).toLocaleString() : "日時不明"}）。`;
-  }
-
-  $("exportBackupBtn").addEventListener("click",()=>{
-    exportManualBackup().catch(err=>{
-      console.error(err);
-      $("backupStatus").textContent = "バックアップ書き出しに失敗しました。";
-    });
-  });
-
-  $("importBackupBtn").addEventListener("click",()=>{
-    $("importBackupInput").click();
-  });
-
-  $("importBackupInput").addEventListener("change", async e=>{
-    const file = e.target.files?.[0];
-    if(!file) return;
-    try{
-      await importManualBackup(file);
-    }catch(err){
-      alert(err.message || "バックアップの読み込みに失敗しました");
-    }
-    e.target.value = "";
-  });
-
-  $("restoreAutoBackupBtn").addEventListener("click",()=>{
-    restoreLatestAutoBackup().catch(err=>{
-      console.error(err);
-      $("backupStatus").textContent = "自動バックアップの復元に失敗しました。";
-    });
-  });
-
   async function init(){
     try{
       state = await loadState();
-    }catch(err){
-      console.error("IndexedDB load failed:", err);
-      alert("データの読み込みに失敗しました。
-この状態では新しいデータを追加しないでください。
-
-" + (err?.name || "") + " " + (err?.message || ""));
-      state = initialState();
-      return;
-    }
-
-    // バックアップ確認に失敗しても、本体データの読み込み成功とは分けて扱う。
-    try{
-      const latestBackup = await dbGet(BACKUP_KEYS[0]);
-      if(latestBackup?.state){
-        const bq = Array.isArray(latestBackup.state.quests) ? latestBackup.state.quests.length : 0;
-        const cq = Array.isArray(state.quests) ? state.quests.length : 0;
-        if(bq > 0 && cq === 0){
-          setTimeout(()=>{
-            alert("現在のデータが空ですが、自動バックアップにスタンプが残っています。設定 → バックアップ →「直前の自動バックアップに戻す」から復元できます。");
-          },300);
-        }
-      }
-    }catch(err){
-      console.warn("Backup check failed:", err);
-    }
-
-    try{
       renderHome();
       renderCalendar();
     }catch(err){
-      console.error("UI init failed:", err);
-      alert("画面の初期化中にエラーが出ました。
-データ自体の読み込みには成功しています。
-
-" + (err?.name || "") + " " + (err?.message || ""));
+      console.error(err);
+      alert("データの読み込みに失敗しました");
+      state = initialState();
     }
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=13").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=10").catch(console.error);
       });
     }
   }
