@@ -1047,7 +1047,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.37</div>
+    <div class="version">Stamp Card v1.9.38</div>
   </div>
 </div>
 
@@ -1991,7 +1991,7 @@
       const ctx = getStampAudioContext();
       if(!ctx) return null;
 
-      const res = await fetch("./sirenkurikku-v3.wav", {cache:"reload"});
+      const res = await fetch("./sirenkurikku-v4.wav", {cache:"reload"});
       if(!res.ok) throw new Error("date nav sound fetch failed");
       const bytes = await res.arrayBuffer();
       dateNavAudioBuffer = await ctx.decodeAudioData(bytes);
@@ -3959,7 +3959,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.37").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.38").catch(console.error);
       });
     }
   }
