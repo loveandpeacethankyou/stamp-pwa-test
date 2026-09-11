@@ -129,7 +129,7 @@
       grid-template-columns:repeat(3,minmax(0,1fr));
       gap:18px 10px;
       justify-items:center;
-      min-height:132px;
+      min-height:0;
       align-items:start;
     }
     .stamp-wrap{
@@ -200,10 +200,10 @@
       padding:30px 10px;
     }
     .memo{
-      margin-top:20px;
+      margin-top:18px;
     }
     .memo + .memo{
-      margin-top:14px;
+      margin-top:7px;
     }
     .memo label{
       display:block;
@@ -777,7 +777,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.9.2</div>
+    <div class="version">Stamp Card v1.9.3</div>
   </div>
 </div>
 
@@ -2274,7 +2274,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.2").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.3").catch(console.error);
       });
     }
   }
