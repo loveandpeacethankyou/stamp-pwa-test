@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-10-month-count";
+const CACHE = "stamp-card-v1-9-11-monthly-library";
 const CORE = [
   "./",
   "./index.html",
