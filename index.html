@@ -237,6 +237,7 @@
     }
     .stamp.on.has-image .stamp-label{
       position:relative;
+      z-index:3;
       left:auto;
       bottom:auto;
       transform:none;
@@ -252,20 +253,23 @@
       white-space:normal;
       overflow:visible;
       text-overflow:clip;
-      text-shadow:
-        0 0 3px rgba(158,149,137,.54),
-        0 0 6px rgba(158,149,137,.29);
+      text-shadow:none;
       box-shadow:none;
       word-break:break-word;
       text-wrap:balance;
     }
+    .stamp.on.has-image .stamp-label::before{
+      content:attr(data-label);
+      position:absolute;
+      inset:0;
+      z-index:-1;
+      color:rgba(255,255,255,.30);
+      filter:blur(1.3px);
+      pointer-events:none;
+      mix-blend-mode:normal;
+    }
     .stamp.on.has-image.bright-image-label .stamp-label{
       color:rgba(158,149,137,.54);
-      -webkit-text-stroke:.55px rgba(255,255,255,.24);
-      paint-order:stroke fill;
-      text-shadow:
-        0 0 1.5px rgba(255,255,255,.18),
-        0 0 3px rgba(255,255,255,.10);
       mix-blend-mode:multiply;
     }
     .empty{
@@ -1056,7 +1060,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.47</div>
+    <div class="version">Stamp Card v1.9.48</div>
   </div>
 </div>
 
@@ -1585,9 +1589,12 @@
             btn.appendChild(img);
             applyAutoStampLabelContrast(btn, img, chosen);
             label.textContent = q.name;
+          label.dataset.label = q.name;
+            label.dataset.label = q.name;
           } else {
             btn.style.background = style?.color || "#d96c7a";
             label.textContent = style?.stampText || style?.name || q.name;
+            label.dataset.label = label.textContent;
           }
         } else {
           label.textContent = q.name;
@@ -4065,7 +4072,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.47").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.48").catch(console.error);
       });
     }
   }

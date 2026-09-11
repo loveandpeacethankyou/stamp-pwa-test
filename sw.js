@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-47-bright-label-stroke";
+const CACHE = "stamp-card-v1-9-48-label-outline-layer";
 const CORE = [
   "./",
   "./index.html",
