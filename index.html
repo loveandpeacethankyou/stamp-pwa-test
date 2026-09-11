@@ -254,7 +254,8 @@
       background:rgba(255,255,255,.6);
       color:var(--ink);
       padding:12px 13px;
-      resize:vertical;
+      resize:none;
+      overflow-y:hidden;
       outline:none;
       font-size:15px;
     }
@@ -1001,7 +1002,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.14</div>
+    <div class="version">Stamp Card v1.9.15</div>
   </div>
 </div>
 
@@ -1377,6 +1378,12 @@
     }
   }
 
+  function autoGrowTextarea(el){
+    if(!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(68, el.scrollHeight)}px`;
+  }
+
   function renderHome(){
     const f = formatHomeDate(selectedDate);
     $("homeDate").textContent = f.date;
@@ -1448,6 +1455,8 @@
     $("reorderBanner").classList.toggle("show", reorderMode);
     $("memoInput").value = state.memos[selectedDate] || "";
     $("diaryInput").value = state.diaries[selectedDate] || "";
+    autoGrowTextarea($("memoInput"));
+    autoGrowTextarea($("diaryInput"));
     renderStampAreaBackground();
     renderDiaryImages();
   }
@@ -2725,7 +2734,8 @@
     renderCalendar();
   });
 
-  $("memoInput").addEventListener("input",()=>{
+  $("memoInput").addEventListener("input",e=>{
+    autoGrowTextarea(e.currentTarget);
     clearTimeout(memoTimer);
     memoTimer = setTimeout(async ()=>{
       const text = $("memoInput").value;
@@ -2735,7 +2745,8 @@
     },250);
   });
 
-  $("diaryInput").addEventListener("input",()=>{
+  $("diaryInput").addEventListener("input",e=>{
+    autoGrowTextarea(e.currentTarget);
     clearTimeout(diaryTimer);
     diaryTimer = setTimeout(async ()=>{
       const text = $("diaryInput").value;
@@ -3432,7 +3443,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.14").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.15").catch(console.error);
       });
     }
   }
