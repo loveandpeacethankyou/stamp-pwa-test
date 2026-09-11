@@ -848,6 +848,7 @@
 
     <div class="cloud-section">
       <h3 class="backup-title">iPhone・Windows共有</h3>
+      <div class="backup-note" style="margin:0 0 10px">ログイン中は、起動時と変更後に自動同期します。競合を検出した場合は自動上書きしません。</div>
       <input id="cloudEmail" type="email" autocomplete="username" placeholder="メールアドレス">
       <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="パスワード">
       <button id="cloudLoginBtn" type="button" class="secondary full">ログイン</button>
@@ -858,7 +859,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.7</div>
+    <div class="version">Stamp Card v1.9.8</div>
   </div>
 </div>
 
@@ -1079,12 +1080,18 @@
     });
   }
 
-  async function saveState(){
+  async function saveState(options={}){
     const db = await openDB();
     return new Promise((resolve,reject)=>{
       const tx = db.transaction(STORE,"readwrite");
       tx.objectStore(STORE).put(state, STATE_KEY);
-      tx.oncomplete = () => resolve();
+      tx.oncomplete = () => {
+        if(!options.fromCloud){
+          markCloudDirty();
+          scheduleAutoCloudPush();
+        }
+        resolve();
+      };
       tx.onerror = () => reject(tx.error);
     });
   }
@@ -2428,6 +2435,11 @@
   const SUPABASE_URL = "https://etbbxxtiwnetddvbhnmr.supabase.co";
   const SUPABASE_KEY = "sb_publishable_pZaexispb9vtWu8-b9B4sw_4sZWcH7s";
   const CLOUD_SESSION_KEY = "stamp-card-cloud-session";
+  const CLOUD_META_PREFIX = "stamp-card-cloud-meta-";
+
+  let autoCloudTimer = null;
+  let autoCloudBusy = false;
+  let lastAutoCloudCheck = 0;
 
   function getCloudSession(){
     try{
@@ -2442,12 +2454,69 @@
     else localStorage.removeItem(CLOUD_SESSION_KEY);
   }
 
+  function cloudMetaKey(userId){
+    return CLOUD_META_PREFIX + userId;
+  }
+
+  function getCloudMeta(userId){
+    if(!userId) return {lastCloudUpdatedAt:null, dirty:false};
+    try{
+      return {
+        lastCloudUpdatedAt:null,
+        dirty:false,
+        ...(JSON.parse(localStorage.getItem(cloudMetaKey(userId)) || "null") || {})
+      };
+    }catch{
+      return {lastCloudUpdatedAt:null, dirty:false};
+    }
+  }
+
+  function setCloudMeta(userId, meta){
+    if(!userId) return;
+    localStorage.setItem(cloudMetaKey(userId), JSON.stringify(meta));
+  }
+
+  function markCloudDirty(){
+    const session = getCloudSession();
+    if(!session?.user_id) return;
+    const meta = getCloudMeta(session.user_id);
+    meta.dirty = true;
+    setCloudMeta(session.user_id, meta);
+  }
+
+  function clearCloudDirty(userId, updatedAt){
+    const meta = getCloudMeta(userId);
+    meta.dirty = false;
+    if(updatedAt) meta.lastCloudUpdatedAt = updatedAt;
+    setCloudMeta(userId, meta);
+  }
+
   function cloudHeaders(token, extra={}){
     return {
       "apikey": SUPABASE_KEY,
       "Authorization": `Bearer ${token}`,
       ...extra
     };
+  }
+
+  function stateFingerprint(value){
+    try{
+      return JSON.stringify(normalizeState(value));
+    }catch{
+      return "";
+    }
+  }
+
+  function stateIsEmpty(value){
+    const s = normalizeState(value);
+    return (
+      s.quests.length===0 &&
+      s.styles.length===0 &&
+      s.completions.length===0 &&
+      Object.keys(s.memos || {}).length===0 &&
+      Object.keys(s.diaries || {}).length===0 &&
+      Object.keys(s.diaryImages || {}).length===0
+    );
   }
 
   async function refreshCloudSessionIfNeeded(){
@@ -2484,15 +2553,52 @@
     return session;
   }
 
-  function updateCloudUI(){
+  function updateCloudUI(message=null){
     const session = getCloudSession();
     const loggedIn = !!session?.access_token;
     $("cloudUploadBtn").disabled = !loggedIn;
     $("cloudDownloadBtn").disabled = !loggedIn;
     $("cloudLoginBtn").textContent = loggedIn ? "ログアウト" : "ログイン";
-    $("cloudStatus").textContent = loggedIn
-      ? `ログイン中：${session.email || "ユーザー"}`
-      : "未ログイン";
+
+    if(message){
+      $("cloudStatus").textContent = message;
+      return;
+    }
+
+    if(!loggedIn){
+      $("cloudStatus").textContent = "未ログイン";
+      return;
+    }
+
+    const meta = getCloudMeta(session.user_id);
+    $("cloudStatus").textContent = meta.dirty
+      ? `ログイン中：${session.email || "ユーザー"} ／ 同期待ち`
+      : `ログイン中：${session.email || "ユーザー"} ／ 自動同期ON`;
+  }
+
+  async function fetchCloudRow(session, includeState=true){
+    const select = includeState ? "state,updated_at" : "updated_at";
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/stamp_card_state?select=${select}&user_id=eq.${encodeURIComponent(session.user_id)}`,
+      {headers:cloudHeaders(session.access_token)}
+    );
+
+    if(!res.ok){
+      const text = await res.text();
+      throw new Error(`Cloud read failed ${res.status}: ${text}`);
+    }
+
+    const rows = await res.json();
+    return rows[0] || null;
+  }
+
+  async function saveIncomingCloudState(incoming, updatedAt){
+    state = normalizeState(incoming);
+    await saveState({fromCloud:true});
+    clearCloudDirty(getCloudSession()?.user_id, updatedAt);
+    renderHome();
+    renderCalendar();
+    renderManage();
   }
 
   async function cloudLogin(){
@@ -2511,7 +2617,7 @@
       return;
     }
 
-    $("cloudStatus").textContent = "ログイン中…";
+    updateCloudUI("ログイン中…");
 
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method:"POST",
@@ -2529,7 +2635,7 @@
         if(err?.msg) msg += "\n" + err.msg;
         else if(err?.message) msg += "\n" + err.message;
       }catch{}
-      $("cloudStatus").textContent = "ログイン失敗";
+      updateCloudUI("ログイン失敗");
       alert(msg);
       return;
     }
@@ -2542,12 +2648,14 @@
       user_id:data.user?.id,
       email:data.user?.email || email
     };
+
     setCloudSession(session);
     $("cloudPassword").value = "";
     updateCloudUI();
+    await autoCloudSyncCheck(true);
   }
 
-  async function cloudUpload(){
+  async function forceCloudUpload(){
     const session = await refreshCloudSessionIfNeeded();
     if(!session){
       updateCloudUI();
@@ -2557,7 +2665,8 @@
 
     if(!confirm("この端末の現在データをクラウドへ保存しますか？")) return;
 
-    $("cloudStatus").textContent = "クラウドへ保存中…";
+    updateCloudUI("クラウドへ保存中…");
+    const updatedAt = new Date().toISOString();
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/stamp_card_state?on_conflict=user_id`, {
       method:"POST",
@@ -2568,23 +2677,24 @@
       body:JSON.stringify({
         user_id:session.user_id,
         state,
-        updated_at:new Date().toISOString()
+        updated_at:updatedAt
       })
     });
 
     if(!res.ok){
       const text = await res.text();
       console.error("Cloud upload failed:", res.status, text);
-      $("cloudStatus").textContent = "クラウド保存失敗";
+      updateCloudUI("クラウド保存失敗");
       alert("クラウドへの保存に失敗しました。");
       return;
     }
 
-    $("cloudStatus").textContent = `クラウド保存済み：${new Date().toLocaleString()}`;
+    clearCloudDirty(session.user_id, updatedAt);
+    updateCloudUI(`クラウド保存済み：${new Date(updatedAt).toLocaleString()}`);
     alert("クラウドへ保存しました。");
   }
 
-  async function cloudDownload(){
+  async function forceCloudDownload(){
     const session = await refreshCloudSessionIfNeeded();
     if(!session){
       updateCloudUI();
@@ -2592,29 +2702,17 @@
       return;
     }
 
-    $("cloudStatus").textContent = "クラウドを確認中…";
+    updateCloudUI("クラウドを確認中…");
+    const row = await fetchCloudRow(session, true);
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/stamp_card_state?select=state,updated_at&user_id=eq.${encodeURIComponent(session.user_id)}`, {
-      headers:cloudHeaders(session.access_token)
-    });
-
-    if(!res.ok){
-      const text = await res.text();
-      console.error("Cloud download failed:", res.status, text);
-      $("cloudStatus").textContent = "クラウド読込失敗";
-      alert("クラウドからの読み込みに失敗しました。");
-      return;
-    }
-
-    const rows = await res.json();
-    if(!rows.length || !rows[0]?.state){
-      $("cloudStatus").textContent = "クラウドにデータはまだありません";
+    if(!row?.state){
+      updateCloudUI("クラウドにデータはまだありません");
       alert("クラウドに保存されたデータはまだありません。\nこの端末から先に「この端末 → クラウド」を押してください。");
       return;
     }
 
-    const incoming = normalizeState(rows[0].state);
-    const when = rows[0].updated_at ? new Date(rows[0].updated_at).toLocaleString() : "日時不明";
+    const incoming = normalizeState(row.state);
+    const when = row.updated_at ? new Date(row.updated_at).toLocaleString() : "日時不明";
     const msg =
       `クラウドのデータをこの端末へ読み込みますか？\n\n` +
       `クラウド更新：${when}\n` +
@@ -2627,41 +2725,173 @@
       return;
     }
 
-    state = incoming;
     try{
-      await saveState();
-      renderHome();
-      renderCalendar();
-      renderManage();
-      $("cloudStatus").textContent = `クラウドから読込済み：${when}`;
+      await saveIncomingCloudState(incoming, row.updated_at);
+      updateCloudUI(`クラウドから読込済み：${when}`);
       alert("クラウドのデータを読み込みました。");
     }catch(err){
       console.error(err);
-      $("cloudStatus").textContent = "端末への保存失敗";
+      updateCloudUI("端末への保存失敗");
       alert("クラウドデータを端末へ保存できませんでした。");
+    }
+  }
+
+  async function autoCloudPush(){
+    if(autoCloudBusy) return;
+
+    const session = await refreshCloudSessionIfNeeded();
+    if(!session){
+      updateCloudUI();
+      return;
+    }
+
+    const meta = getCloudMeta(session.user_id);
+    if(!meta.dirty || !meta.lastCloudUpdatedAt) return;
+
+    autoCloudBusy = true;
+    try{
+      updateCloudUI("自動同期中…");
+
+      // updated_at が前回同期時刻と一致する行だけ更新する。
+      // 他端末が先に更新していた場合は0件になり、上書きしない。
+      const newUpdatedAt = new Date().toISOString();
+      const endpoint =
+        `${SUPABASE_URL}/rest/v1/stamp_card_state` +
+        `?user_id=eq.${encodeURIComponent(session.user_id)}` +
+        `&updated_at=eq.${encodeURIComponent(meta.lastCloudUpdatedAt)}`;
+
+      const res = await fetch(endpoint, {
+        method:"PATCH",
+        headers:cloudHeaders(session.access_token, {
+          "Content-Type":"application/json",
+          "Prefer":"return=representation"
+        }),
+        body:JSON.stringify({
+          state,
+          updated_at:newUpdatedAt
+        })
+      });
+
+      if(!res.ok){
+        const text = await res.text();
+        throw new Error(`Cloud auto-write failed ${res.status}: ${text}`);
+      }
+
+      const rows = await res.json();
+      if(!rows.length){
+        updateCloudUI("⚠︎ 他端末の変更を検出。自動上書きを停止しました");
+        return;
+      }
+
+      clearCloudDirty(session.user_id, newUpdatedAt);
+      updateCloudUI(`自動同期済み：${new Date(newUpdatedAt).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}`);
+    }catch(err){
+      console.error(err);
+      updateCloudUI("自動同期できませんでした。手動同期は利用できます");
+    }finally{
+      autoCloudBusy = false;
+    }
+  }
+
+  function scheduleAutoCloudPush(){
+    const session = getCloudSession();
+    if(!session?.user_id) return;
+    clearTimeout(autoCloudTimer);
+    autoCloudTimer = setTimeout(()=>{
+      autoCloudPush().catch(console.error);
+    }, 1800);
+  }
+
+  async function autoCloudSyncCheck(force=false){
+    const now = Date.now();
+    if(!force && now - lastAutoCloudCheck < 15000) return;
+    if(autoCloudBusy) return;
+    lastAutoCloudCheck = now;
+
+    const session = await refreshCloudSessionIfNeeded();
+    if(!session){
+      updateCloudUI();
+      return;
+    }
+
+    autoCloudBusy = true;
+    try{
+      updateCloudUI("クラウド確認中…");
+      const row = await fetchCloudRow(session, true);
+
+      if(!row?.state){
+        updateCloudUI("クラウドは空です。最初だけ手動で送信してください");
+        return;
+      }
+
+      const meta = getCloudMeta(session.user_id);
+      const sameState = stateFingerprint(state) === stateFingerprint(row.state);
+
+      // v1.9.8導入直後など、まだ同期基準を持っていない端末。
+      if(!meta.lastCloudUpdatedAt){
+        if(sameState){
+          clearCloudDirty(session.user_id, row.updated_at);
+          updateCloudUI("自動同期ON");
+          return;
+        }
+
+        if(stateIsEmpty(state) && !stateIsEmpty(row.state)){
+          await saveIncomingCloudState(row.state, row.updated_at);
+          updateCloudUI("クラウドから自動で読み込みました");
+          return;
+        }
+
+        updateCloudUI("⚠︎ 端末とクラウドが異なります。最初だけ手動同期してください");
+        return;
+      }
+
+      // クラウドが前回同期時から変わっていない。
+      if(row.updated_at === meta.lastCloudUpdatedAt){
+        if(meta.dirty){
+          // finallyのあとに実行する
+          setTimeout(()=>autoCloudPush().catch(console.error), 0);
+        }else{
+          updateCloudUI("自動同期ON");
+        }
+        return;
+      }
+
+      // クラウド側が別端末から更新された。
+      if(meta.dirty){
+        updateCloudUI("⚠︎ 両方に変更があります。自動上書きを停止しました");
+        return;
+      }
+
+      await saveIncomingCloudState(row.state, row.updated_at);
+      updateCloudUI("クラウドの新しいデータを自動反映しました");
+    }catch(err){
+      console.error(err);
+      updateCloudUI("クラウド確認に失敗。端末データはそのままです");
+    }finally{
+      autoCloudBusy = false;
     }
   }
 
   $("cloudLoginBtn").addEventListener("click",()=>{
     cloudLogin().catch(err=>{
       console.error(err);
-      $("cloudStatus").textContent = "通信エラー";
+      updateCloudUI("通信エラー");
       alert("ログイン処理で通信エラーが発生しました。");
     });
   });
 
   $("cloudUploadBtn").addEventListener("click",()=>{
-    cloudUpload().catch(err=>{
+    forceCloudUpload().catch(err=>{
       console.error(err);
-      $("cloudStatus").textContent = "通信エラー";
+      updateCloudUI("通信エラー");
       alert("クラウド保存中に通信エラーが発生しました。");
     });
   });
 
   $("cloudDownloadBtn").addEventListener("click",()=>{
-    cloudDownload().catch(err=>{
+    forceCloudDownload().catch(err=>{
       console.error(err);
-      $("cloudStatus").textContent = "通信エラー";
+      updateCloudUI("通信エラー");
       alert("クラウド読み込み中に通信エラーが発生しました。");
     });
   });
@@ -2669,6 +2899,7 @@
   function openSettings(){
     if(reorderMode) exitReorderMode();
     renderManage();
+    updateCloudUI();
     openOverlay("settingsOverlay");
   }
   $("settingsBtn").onclick = openSettings;
@@ -2700,9 +2931,25 @@
       state = initialState();
     }
 
+    updateCloudUI();
+
+    // ローカルの読み込み完了後にだけクラウドを確認する。
+    // 端末とクラウドの両方に変更がある場合は自動上書きしない。
+    if(getCloudSession()){
+      setTimeout(()=>autoCloudSyncCheck(true).catch(console.error), 250);
+    }
+
+    window.addEventListener("focus",()=>{
+      autoCloudSyncCheck(false).catch(console.error);
+    });
+
+    window.addEventListener("online",()=>{
+      autoCloudSyncCheck(true).catch(console.error);
+    });
+
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.7").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.8").catch(console.error);
       });
     }
   }
