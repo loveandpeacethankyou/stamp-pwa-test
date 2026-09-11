@@ -145,9 +145,9 @@
       width:auto;
       max-width:none;
       transform:translate(-50%,-50%);
-      opacity:.22;
+      opacity:0;
       display:block;
-      transition:opacity .65s ease;
+      transition:opacity 2.4s cubic-bezier(.45,0,.55,1);
       will-change:opacity;
     }
     .stamp-grid{
@@ -967,7 +967,8 @@
     <div class="card">
       <div id="stampArea" class="stamp-area">
         <div id="stampAreaBg" class="stamp-area-bg" hidden>
-          <img id="stampAreaBgImage" alt="">
+          <img id="stampAreaBgImageA" alt="">
+          <img id="stampAreaBgImageB" alt="">
         </div>
         <div id="stampGrid" class="stamp-grid"></div>
       </div>
@@ -1065,7 +1066,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.52</div>
+    <div class="version">Stamp Card v1.9.53</div>
   </div>
 </div>
 
@@ -1427,19 +1428,15 @@
   }
 
   let stampBgSlideshowTimer = null;
-  let stampBgFadeTimer = null;
   let stampBgIndex = 0;
   let stampBgDate = null;
   let stampBgSignature = "";
+  let stampBgActiveLayer = 0;
 
   function stopStampAreaBackgroundSlideshow(){
     if(stampBgSlideshowTimer){
       clearInterval(stampBgSlideshowTimer);
       stampBgSlideshowTimer = null;
-    }
-    if(stampBgFadeTimer){
-      clearTimeout(stampBgFadeTimer);
-      stampBgFadeTimer = null;
     }
   }
 
@@ -1451,10 +1448,47 @@
     return images.map(image=>`${image.id || ""}:${image.data?.length || 0}`).join("|");
   }
 
+  function setStampBgLayerImage(layer, data){
+    if(layer.src === data || layer.dataset.source === data) return;
+    layer.dataset.source = data;
+    layer.src = data;
+  }
+
+  function crossfadeStampBackground(nextData){
+    const a = $("stampAreaBgImageA");
+    const b = $("stampAreaBgImageB");
+    if(!a || !b) return;
+
+    const current = stampBgActiveLayer === 0 ? a : b;
+    const next = stampBgActiveLayer === 0 ? b : a;
+
+    next.style.opacity = "0";
+    setStampBgLayerImage(next, nextData);
+
+    const begin = ()=>{
+      // 次画像を前画像の上へゆっくり出しながら、前画像を同時に消す。
+      // 常にどちらかが見えているので、途中で白く抜けない。
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          next.style.opacity = ".22";
+          current.style.opacity = "0";
+          stampBgActiveLayer = stampBgActiveLayer === 0 ? 1 : 0;
+        });
+      });
+    };
+
+    if(next.complete && next.naturalWidth){
+      begin();
+    }else{
+      next.addEventListener("load", begin, {once:true});
+    }
+  }
+
   function renderStampAreaBackground(){
     const bg = $("stampAreaBg");
-    const img = $("stampAreaBgImage");
-    if(!bg || !img) return;
+    const a = $("stampAreaBgImageA");
+    const b = $("stampAreaBgImageB");
+    if(!bg || !a || !b) return;
 
     const images = stampBackgroundImages(selectedDate);
     const signature = stampBackgroundSignature(images);
@@ -1464,16 +1498,20 @@
       stampBgDate = selectedDate;
       stampBgSignature = "";
       stampBgIndex = 0;
-      img.style.opacity = "0";
-      img.removeAttribute("src");
+      stampBgActiveLayer = 0;
+      a.style.opacity = "0";
+      b.style.opacity = "0";
+      a.removeAttribute("src");
+      b.removeAttribute("src");
+      a.dataset.source = "";
+      b.dataset.source = "";
       bg.hidden = true;
       return;
     }
 
     const sameSet = stampBgDate === selectedDate && stampBgSignature === signature;
 
-    // スタンプを押してホームが再描画されても、同じ日の同じ画像なら
-    // スライドショー位置と5秒タイマーはそのまま維持する。
+    // 同じ日の同じ画像セットなら、再描画でスライドショーをリセットしない。
     if(sameSet && stampBgSlideshowTimer){
       bg.hidden = false;
       return;
@@ -1483,6 +1521,7 @@
 
     if(!sameSet){
       stampBgIndex = 0;
+      stampBgActiveLayer = 0;
     }else{
       stampBgIndex = Math.min(stampBgIndex, images.length - 1);
     }
@@ -1490,19 +1529,26 @@
     stampBgDate = selectedDate;
     stampBgSignature = signature;
     bg.hidden = false;
-    img.style.opacity = "0";
-    img.src = images[stampBgIndex].data;
 
-    requestAnimationFrame(()=>{
+    // 初期表示は一枚だけ。次の切替から二枚を重ねてクロスフェード。
+    a.style.opacity = "0";
+    b.style.opacity = "0";
+    setStampBgLayerImage(a, images[stampBgIndex].data);
+    stampBgActiveLayer = 0;
+
+    const showFirst = ()=>{
       requestAnimationFrame(()=>{
-        img.style.opacity = ".22";
+        requestAnimationFrame(()=>{
+          a.style.opacity = ".22";
+        });
       });
-    });
+    };
+    if(a.complete && a.naturalWidth) showFirst();
+    else a.addEventListener("load", showFirst, {once:true});
 
     if(images.length <= 1) return;
 
     const slideshowDate = selectedDate;
-
     stampBgSlideshowTimer = setInterval(()=>{
       if(selectedDate !== slideshowDate) return;
 
@@ -1518,23 +1564,8 @@
         return;
       }
 
-      // まず現在の画像をフェードアウト。
-      img.style.opacity = "0";
-
-      if(stampBgFadeTimer) clearTimeout(stampBgFadeTimer);
-      stampBgFadeTimer = setTimeout(()=>{
-        if(selectedDate !== slideshowDate) return;
-
-        stampBgIndex = (stampBgIndex + 1) % currentImages.length;
-        img.src = currentImages[stampBgIndex].data;
-
-        // 画像を差し替えてからフェードイン。
-        requestAnimationFrame(()=>{
-          requestAnimationFrame(()=>{
-            img.style.opacity = ".22";
-          });
-        });
-      }, 650);
+      stampBgIndex = (stampBgIndex + 1) % currentImages.length;
+      crossfadeStampBackground(currentImages[stampBgIndex].data);
     }, 5000);
   }
 
@@ -4174,7 +4205,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.52").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.53").catch(console.error);
       });
     }
   }
