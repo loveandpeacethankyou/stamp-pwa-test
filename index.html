@@ -287,13 +287,23 @@
       padding:0;
     }
     .day{position:relative}
+    .day-top{
+      display:flex;
+      align-items:center;
+      gap:4px;
+      min-height:16px;
+      margin-bottom:5px;
+    }
+    .day-num{
+      margin:0 0 0 2px;
+    }
     .day-photo-indicator{
-      position:absolute;
-      top:6px;
-      right:5px;
-      font-size:10px;
-      line-height:1;
-      opacity:.7;
+      width:12px;
+      height:12px;
+      display:block;
+      color:var(--muted);
+      opacity:.8;
+      flex:0 0 auto;
     }
     .photo-viewer-overlay{
       z-index:90;
@@ -370,8 +380,6 @@
     .day.selected{background:#ebe4da}
     .day-num{
       font-size:12px;
-      margin-left:2px;
-      margin-bottom:5px;
     }
     .mini-stamps{
       display:grid;
@@ -780,7 +788,7 @@
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
-    <div class="version">Stamp Card v1.9.4</div>
+    <div class="version">Stamp Card v1.9.5</div>
   </div>
 </div>
 
@@ -1531,22 +1539,36 @@
       if(ds===todayStr()) btn.classList.add("today");
       if(ds===selectedDate) btn.classList.add("selected");
 
+      const dayTop = document.createElement("div");
+      dayTop.className = "day-top";
+
       const num = document.createElement("div");
       num.className = "day-num";
       num.textContent = d.getDate();
+      dayTop.appendChild(num);
 
       if(diaryImagesFor(ds).length){
-        const photoMark = document.createElement("span");
-        photoMark.className = "day-photo-indicator";
-        photoMark.textContent = "📷";
-        btn.appendChild(photoMark);
+        const photoMark = document.createElementNS("http://www.w3.org/2000/svg","svg");
+        photoMark.setAttribute("class","day-photo-indicator");
+        photoMark.setAttribute("viewBox","0 0 24 24");
+        photoMark.setAttribute("aria-hidden","true");
+        photoMark.innerHTML = `
+          <path d="M8.5 7 10 5h4l1.5 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3.5Z"
+                fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="13" r="3.2"
+                  fill="none" stroke="currentColor" stroke-width="1.8"/>
+        `;
+        dayTop.appendChild(photoMark);
       }
 
       const minis = document.createElement("div");
       minis.className = "mini-stamps";
 
+      // 壊れた参照（quest/style本体が存在しない過去レコード）は表示しない。
+      // データ自体は削除せず、カレンダー上からのみ隠す。
       const comps = state.completions
-        .filter(c=>c.date===ds)
+        .filter(c=>c.date===ds && questById(c.questId) && styleById(c.styleId))
         .sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
 
       const shown = comps.slice(0,4);
@@ -1576,7 +1598,7 @@
         minis.appendChild(more);
       }
 
-      btn.append(num,minis);
+      btn.append(dayTop,minis);
       btn.addEventListener("click",()=>{
         selectedDate = ds;
         showScreen("home");
@@ -2277,7 +2299,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.4").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.5").catch(console.error);
       });
     }
   }

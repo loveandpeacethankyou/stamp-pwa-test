@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-4-caption-gap";
+const CACHE = "stamp-card-v1-9-5-calendar-icons";
 const CORE = [
   "./",
   "./index.html",
