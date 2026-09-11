@@ -261,9 +261,11 @@
     }
     .stamp.on.has-image.bright-image-label .stamp-label{
       color:rgba(158,149,137,.54);
+      -webkit-text-stroke:.55px rgba(255,255,255,.24);
+      paint-order:stroke fill;
       text-shadow:
-        0 0 1.5px rgba(255,255,255,.26),
-        0 0 3px rgba(255,255,255,.14);
+        0 0 1.5px rgba(255,255,255,.18),
+        0 0 3px rgba(255,255,255,.10);
       mix-blend-mode:multiply;
     }
     .empty{
@@ -1054,7 +1056,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.46</div>
+    <div class="version">Stamp Card v1.9.47</div>
   </div>
 </div>
 
@@ -4063,7 +4065,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.46").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.47").catch(console.error);
       });
     }
   }
