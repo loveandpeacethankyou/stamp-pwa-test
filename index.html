@@ -259,6 +259,10 @@
       word-break:break-word;
       text-wrap:balance;
     }
+    .stamp.on.has-image.bright-image-label .stamp-label{
+      color:#9e9589;
+      text-shadow:none;
+    }
     .empty{
       grid-column:1/-1;
       align-self:center;
@@ -1047,7 +1051,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.43</div>
+    <div class="version">Stamp Card v1.9.44</div>
   </div>
 </div>
 
@@ -1424,6 +1428,102 @@
     }
   }
 
+  const brightStampImageCache = new Map();
+
+  function isMostlyWhiteStampImage(imageEl, cacheKey){
+    if(brightStampImageCache.has(cacheKey)){
+      return brightStampImageCache.get(cacheKey);
+    }
+
+    try{
+      const canvas = document.createElement("canvas");
+      const size = 48;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d", {willReadFrequently:true});
+      if(!ctx) return false;
+
+      // スタンプ表示に近い「中央をcoverで切り抜いた状態」で判定する。
+      const iw = imageEl.naturalWidth || 1;
+      const ih = imageEl.naturalHeight || 1;
+      const scale = Math.max(size / iw, size / ih);
+      const dw = iw * scale;
+      const dh = ih * scale;
+      const dx = (size - dw) / 2;
+      const dy = (size - dh) / 2;
+      ctx.drawImage(imageEl, dx, dy, dw, dh);
+
+      const pixels = ctx.getImageData(0,0,size,size).data;
+      let sampled = 0;
+      let nearWhite = 0;
+      let brightNeutral = 0;
+
+      // 円形スタンプの内側だけをサンプリング。
+      const cx = (size - 1) / 2;
+      const cy = (size - 1) / 2;
+      const r2 = (size * 0.46) ** 2;
+
+      for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+          const ox = x - cx;
+          const oy = y - cy;
+          if(ox*ox + oy*oy > r2) continue;
+
+          const i = (y*size + x) * 4;
+          const a = pixels[i+3];
+          if(a < 80) continue;
+
+          const r = pixels[i];
+          const g = pixels[i+1];
+          const b = pixels[i+2];
+          const max = Math.max(r,g,b);
+          const min = Math.min(r,g,b);
+          const luma = 0.2126*r + 0.7152*g + 0.0722*b;
+
+          sampled++;
+
+          // 「白そのもの」が多いか。
+          if(r >= 220 && g >= 220 && b >= 220){
+            nearWhite++;
+          }
+
+          // 漫画スクショの薄いグレー・紙色も白系として扱う。
+          if(luma >= 210 && (max - min) <= 35){
+            brightNeutral++;
+          }
+        }
+      }
+
+      if(!sampled) return false;
+
+      const whiteRatio = nearWhite / sampled;
+      const brightNeutralRatio = brightNeutral / sampled;
+
+      // 55%以上がほぼ白、または70%以上が明るい無彩色ならグレー文字へ。
+      const result = whiteRatio >= 0.55 || brightNeutralRatio >= 0.70;
+      brightStampImageCache.set(cacheKey, result);
+      return result;
+    }catch(err){
+      console.warn("stamp image brightness check failed:", err);
+      return false;
+    }
+  }
+
+  function applyAutoStampLabelContrast(btn, img, chosen){
+    const cacheKey = `${chosen?.id || ""}|${chosen?.data?.length || 0}`;
+
+    const check = ()=>{
+      const bright = isMostlyWhiteStampImage(img, cacheKey);
+      btn.classList.toggle("bright-image-label", bright);
+    };
+
+    if(img.complete && img.naturalWidth){
+      check();
+    }else{
+      img.addEventListener("load", check, {once:true});
+    }
+  }
+
   function autoGrowTextarea(el){
     if(!el) return;
     el.style.height = "auto";
@@ -1478,6 +1578,7 @@
             img.style.objectPosition = `${chosen.positionX ?? 50}% ${chosen.positionY ?? 50}%`;
             img.style.transform = cropTransform(chosen);
             btn.appendChild(img);
+            applyAutoStampLabelContrast(btn, img, chosen);
             label.textContent = q.name;
           } else {
             btn.style.background = style?.color || "#d96c7a";
@@ -3959,7 +4060,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.43").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.44").catch(console.error);
       });
     }
   }
