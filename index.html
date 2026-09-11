@@ -1035,10 +1035,19 @@
         <button id="cloudUploadBtn" type="button" class="secondary full" disabled>この端末 → クラウド</button>
         <button id="cloudDownloadBtn" type="button" class="secondary full" disabled>クラウド → この端末</button>
       </div>
+
+      <div class="backup-section" style="margin-top:14px;padding-top:14px">
+        <h3 class="backup-title">画像Storage移行</h3>
+        <button id="migrateImagesBtn" type="button" class="secondary full" disabled>既存画像をStorageへコピー</button>
+        <div id="imageMigrationStatus" class="backup-note">
+          元画像は端末内に残したままコピーします。
+        </div>
+      </div>
+
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.30</div>
+    <div class="version">Stamp Card v1.9.31</div>
   </div>
 </div>
 
@@ -1302,6 +1311,7 @@
       return style.images.map(x=>({
         id:x.id,
         data:x.data,
+        cloudPath:x.cloudPath || null,
         positionX:Number.isFinite(x.positionX) ? x.positionX : 50,
         positionY:Number.isFinite(x.positionY) ? x.positionY : 50,
         zoom:Number.isFinite(x.zoom) ? x.zoom : 1,
@@ -2621,6 +2631,7 @@
       pendingImages = styleImages(s).map(x=>({
         id:x.id,
         data:x.data,
+        cloudPath:x.cloudPath || null,
         positionX:x.positionX ?? 50,
         positionY:x.positionY ?? 50,
         zoom:x.zoom ?? 1,
@@ -2680,6 +2691,7 @@
         pendingImages.push({
           id:uid("img"),
           data,
+          cloudPath:null,
           positionX:50,
           positionY:50,
           zoom:1,
@@ -2748,6 +2760,7 @@
           images:pendingImages.map(x=>({
             id:x.id,
             data:x.data,
+            cloudPath:x.cloudPath || null,
             positionX:x.positionX ?? 50,
             positionY:x.positionY ?? 50,
             zoom:x.zoom ?? 1,
@@ -2781,6 +2794,7 @@
         images:pendingImages.map(x=>({
           id:x.id,
           data:x.data,
+          cloudPath:x.cloudPath || null,
           positionX:x.positionX ?? 50,
           positionY:x.positionY ?? 50,
           zoom:x.zoom ?? 1,
@@ -2848,6 +2862,7 @@
         arr.push({
           id:uid("diaryimg"),
           data,
+          cloudPath:null,
           capturedAt:capture.capturedAt,
           capturedAtSource:capture.capturedAtSource
         });
@@ -3130,8 +3145,9 @@
   function updateCloudUI(message=null){
     const session = getCloudSession();
     const loggedIn = !!session?.access_token;
-    $("cloudUploadBtn").disabled = !loggedIn;
+    $("cloudUploadBtn").disabled = true;
     $("cloudDownloadBtn").disabled = !loggedIn;
+    $("migrateImagesBtn").disabled = !loggedIn || imageMigrationRunning;
     $("cloudLoginBtn").textContent = loggedIn ? "ログアウト" : "ログイン";
 
     if(message){
@@ -3377,12 +3393,9 @@
   }
 
   function scheduleAutoCloudPush(){
-    const session = getCloudSession();
-    if(!session?.user_id) return;
-    clearTimeout(autoCloudTimer);
-    autoCloudTimer = setTimeout(()=>{
-      autoCloudPush().catch(console.error);
-    }, 1800);
+    // 画像Storage移行中の暫定版では、巨大JSONの自動送信を停止する。
+    // 次版で画像dataをクラウドpayloadから外した後に再開する。
+    return;
   }
 
   async function autoCloudSyncCheck(force=false){
@@ -3479,6 +3492,173 @@
     });
   });
 
+  const IMAGE_BUCKET = "stamp-card-images";
+  let imageMigrationRunning = false;
+
+  function dataUrlToBlob(dataUrl){
+    const m = String(dataUrl || "").match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+    if(!m) throw new Error("画像データ形式を読み取れません");
+
+    const mime = m[1] || "application/octet-stream";
+    const isBase64 = !!m[2];
+    const body = m[3] || "";
+
+    if(isBase64){
+      const binary = atob(body);
+      const bytes = new Uint8Array(binary.length);
+      for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], {type:mime});
+    }
+
+    return new Blob([decodeURIComponent(body)], {type:mime});
+  }
+
+  function extensionForMime(mime){
+    if(mime==="image/webp") return "webp";
+    if(mime==="image/png") return "png";
+    if(mime==="image/jpeg") return "jpg";
+    if(mime==="image/gif") return "gif";
+    if(mime==="image/heic" || mime==="image/heif") return "heic";
+    return "bin";
+  }
+
+  function encodedStoragePath(path){
+    return path.split("/").map(encodeURIComponent).join("/");
+  }
+
+  function collectLocalImagesForMigration(userId){
+    const items = [];
+
+    for(const style of state.styles || []){
+      if(!Array.isArray(style.images)) continue;
+      for(const image of style.images){
+        if(!image?.data || image.cloudPath) continue;
+        items.push({
+          kind:"stamp",
+          image,
+          basePath:`${userId}/stamp/${style.id}/${image.id}`
+        });
+      }
+    }
+
+    for(const [dateStr, images] of Object.entries(state.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        if(!image?.data || image.cloudPath) continue;
+        items.push({
+          kind:"diary",
+          image,
+          basePath:`${userId}/diary/${dateStr}/${image.id}`
+        });
+      }
+    }
+
+    return items;
+  }
+
+  async function uploadImageBlobToStorage(session, path, blob){
+    const endpoint =
+      `${SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${encodedStoragePath(path)}`;
+
+    const res = await fetch(endpoint, {
+      method:"POST",
+      headers:cloudHeaders(session.access_token, {
+        "Content-Type":blob.type || "application/octet-stream",
+        "x-upsert":"true"
+      }),
+      body:blob
+    });
+
+    if(!res.ok){
+      const text = await res.text();
+      throw new Error(`Storage upload failed ${res.status}: ${text}`);
+    }
+  }
+
+  async function migrateExistingImagesToStorage(){
+    if(imageMigrationRunning) return;
+
+    const session = await refreshCloudSessionIfNeeded();
+    if(!session){
+      updateCloudUI();
+      alert("ログインし直してください。");
+      return;
+    }
+
+    const items = collectLocalImagesForMigration(session.user_id);
+    const already =
+      (state.styles || []).reduce((n,s)=>
+        n + (Array.isArray(s.images) ? s.images.filter(x=>x?.data && x.cloudPath).length : 0), 0
+      ) +
+      Object.values(state.diaryImages || {}).reduce((n,arr)=>
+        n + (Array.isArray(arr) ? arr.filter(x=>x?.data && x.cloudPath).length : 0), 0
+      );
+
+    if(!items.length){
+      $("imageMigrationStatus").textContent =
+        `コピー待ちの画像はありません。Storage登録済み：${already}枚`;
+      return;
+    }
+
+    if(!confirm(
+      `既存画像 ${items.length}枚をStorageへコピーします。\n\n` +
+      `端末内の元画像は削除しません。\n途中で失敗しても、成功済みの画像から再開できます。`
+    )) return;
+
+    imageMigrationRunning = true;
+    $("migrateImagesBtn").disabled = true;
+
+    let done = 0;
+    try{
+      for(const item of items){
+        const blob = dataUrlToBlob(item.image.data);
+        const ext = extensionForMime(blob.type);
+        const path = `${item.basePath}.${ext}`;
+
+        $("imageMigrationStatus").textContent =
+          `Storageへコピー中… ${done + 1} / ${items.length}`;
+
+        await uploadImageBlobToStorage(session, path, blob);
+
+        // 元の data は残す。Storageの保存場所だけ追記する。
+        item.image.cloudPath = path;
+        done++;
+
+        // 途中でSafariが閉じても再開できるよう、1枚ごとにローカル保存。
+        // fromCloud:true を使い、巨大JSONの自動同期は発生させない。
+        await saveState({fromCloud:true});
+      }
+
+      $("imageMigrationStatus").textContent =
+        `コピー完了：${done}枚。元画像は端末内に残っています。`;
+      alert(
+        `画像 ${done}枚をStorageへコピーしました。\n\n` +
+        `元画像はまだ削除していません。`
+      );
+    }catch(err){
+      console.error(err);
+      $("imageMigrationStatus").textContent =
+        `途中で停止：${done} / ${items.length}枚まで完了`;
+      alert(
+        `画像コピーが途中で止まりました。\n\n` +
+        `${done}枚までは完了しています。\n` +
+        `もう一度押せば続きから再開できます。\n\n` +
+        String(err?.message || err).slice(0,800)
+      );
+    }finally{
+      imageMigrationRunning = false;
+      updateCloudUI();
+      $("migrateImagesBtn").disabled = !getCloudSession()?.access_token;
+    }
+  }
+
+  $("migrateImagesBtn").addEventListener("click",()=>{
+    migrateExistingImagesToStorage().catch(err=>{
+      console.error(err);
+      alert("画像移行処理でエラーが発生しました。");
+    });
+  });
+
   function openSettings(){
     if(reorderMode) exitReorderMode();
     renderManage();
@@ -3522,20 +3702,12 @@
     // ローカルの読み込み完了後にだけクラウドを確認する。
     // 端末とクラウドの両方に変更がある場合は自動上書きしない。
     if(getCloudSession()){
-      setTimeout(()=>autoCloudSyncCheck(true).catch(console.error), 250);
+      updateCloudUI("画像Storage移行中：自動同期は一時停止中");
     }
-
-    window.addEventListener("focus",()=>{
-      autoCloudSyncCheck(false).catch(console.error);
-    });
-
-    window.addEventListener("online",()=>{
-      autoCloudSyncCheck(true).catch(console.error);
-    });
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.30").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.31").catch(console.error);
       });
     }
   }
