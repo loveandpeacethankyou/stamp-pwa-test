@@ -1136,7 +1136,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.59</div>
+    <div class="version">Stamp Card v1.9.60</div>
   </div>
 </div>
 
@@ -4395,7 +4395,8 @@
   function cleanupGoogleCalendarRequest(){
     if(!googleCalendarRequest) return;
     clearTimeout(googleCalendarRequest.timeoutId);
-    try{ googleCalendarRequest.iframe.remove(); }catch{}
+    try{ googleCalendarRequest.script.remove(); }catch{}
+    try{ delete window[googleCalendarRequest.callbackName]; }catch{}
     googleCalendarRequest = null;
   }
 
@@ -4438,6 +4439,8 @@
     root.classList.remove("show");
   }
 
+  // Apps ScriptのJSONPを<script>で読み込む方式。
+  // CORSやiframeの制限を受けにくく、GitHub Pagesから安定して取得できる。
   function requestGoogleCalendarEvents(dateStr, options={}){
     const config = getGoogleCalendarConfig();
     if(!config.url || !config.key){
@@ -4455,50 +4458,70 @@
     cleanupGoogleCalendarRequest();
 
     return new Promise((resolve,reject)=>{
-      const iframe = document.createElement("iframe");
-      iframe.hidden = true;
-      iframe.setAttribute("aria-hidden","true");
+      const callbackName = `__stampCalendar_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const script = document.createElement("script");
+      script.async = true;
 
       const src = new URL(config.url);
       src.searchParams.set("key", config.key);
       src.searchParams.set("date", dateStr);
-      // キャッシュを避けるための無害な値。Apps Script側は無視する。
+      src.searchParams.set("callback", callbackName);
       src.searchParams.set("_", String(Date.now()));
 
       const timeoutId = setTimeout(()=>{
-        if(googleCalendarRequest?.iframe === iframe){
+        if(googleCalendarRequest?.script === script){
           cleanupGoogleCalendarRequest();
         }else{
-          try{ iframe.remove(); }catch{}
+          try{ script.remove(); }catch{}
+          try{ delete window[callbackName]; }catch{}
         }
         reject(new Error("Google Calendar timeout"));
       }, 15000);
 
-      googleCalendarRequest = {iframe, dateStr, timeoutId, resolve, reject};
-      iframe.src = src.toString();
-      document.body.appendChild(iframe);
+      window[callbackName] = data=>{
+        const req = googleCalendarRequest;
+        if(!req || req.callbackName !== callbackName) return;
+
+        if(!data || typeof data !== "object" || data.ok !== true){
+          const message = String(data?.error || "Google Calendar response error");
+          cleanupGoogleCalendarRequest();
+          reject(new Error(message));
+          return;
+        }
+        if(data.date !== dateStr || !Array.isArray(data.events)){
+          cleanupGoogleCalendarRequest();
+          reject(new Error("Google Calendar invalid response"));
+          return;
+        }
+
+        googleCalendarCache.set(dateStr, {
+          events:data.events,
+          savedAt:Date.now()
+        });
+
+        cleanupGoogleCalendarRequest();
+        renderGoogleCalendarEvents(dateStr, data.events);
+        resolve(data.events);
+      };
+
+      script.onerror = ()=>{
+        if(googleCalendarRequest?.callbackName === callbackName){
+          cleanupGoogleCalendarRequest();
+        }
+        reject(new Error("Google Calendar script load failed"));
+      };
+
+      googleCalendarRequest = {
+        script,
+        callbackName,
+        dateStr,
+        timeoutId
+      };
+
+      script.src = src.toString();
+      document.head.appendChild(script);
     });
   }
-
-  window.addEventListener("message", event=>{
-    const req = googleCalendarRequest;
-    if(!req || event.source !== req.iframe.contentWindow) return;
-
-    const data = event.data;
-    if(!data || typeof data !== "object" || data.ok !== true) return;
-    if(data.date !== req.dateStr || !Array.isArray(data.events)) return;
-
-    googleCalendarCache.set(req.dateStr, {
-      events:data.events,
-      savedAt:Date.now()
-    });
-
-    const resolve = req.resolve;
-    const dateStr = req.dateStr;
-    cleanupGoogleCalendarRequest();
-    renderGoogleCalendarEvents(dateStr, data.events);
-    resolve(data.events);
-  });
 
   async function saveGoogleCalendarSettings(){
     const url = normalizeGoogleCalendarUrl($("googleCalendarUrl").value);
@@ -4523,7 +4546,7 @@
       updateGoogleCalendarSettingsUI(`接続OK ／ この日の予定 ${events?.length || 0}件`);
     }catch(err){
       console.error(err);
-      updateGoogleCalendarSettingsUI("接続できませんでした。URLと秘密キーを確認してください");
+      updateGoogleCalendarSettingsUI("接続できませんでした。Apps Scriptの更新・URL・秘密キーを確認してください");
     }
   }
 
@@ -4607,7 +4630,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.59").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.60").catch(console.error);
       });
     }
   }

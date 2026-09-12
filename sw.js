@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-59-google-calendar";
+const CACHE = "stamp-card-v1-9-60-google-calendar-jsonp";
 const CORE = [
   "./",
   "./index.html",
