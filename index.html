@@ -83,34 +83,32 @@
       text-align:center;
     }
     .date-main .date{
+      position:relative;
       display:inline-block;
       font-size:31px;
       line-height:1.1;
       font-weight:800;
       letter-spacing:.01em;
-      padding:4px 10px 5px;
-      border-radius:999px;
-      transition:background .18s ease, box-shadow .18s ease, color .18s ease;
-    }
-    .date-main.is-today .date{
-      background:rgba(221,184,156,.20);
-      box-shadow:inset 0 0 0 1px rgba(183,139,108,.18);
+      padding:4px 0 7px;
+      transition:color .18s ease;
     }
     .date-main.is-today .date::after{
       content:"";
-      display:inline-block;
-      width:6px;
-      height:6px;
-      margin-left:7px;
-      margin-bottom:4px;
-      border-radius:50%;
-      background:#b77962;
-      opacity:.72;
+      position:absolute;
+      left:50%;
+      bottom:0;
+      width:44px;
+      height:4px;
+      transform:translateX(-50%);
+      background:
+        radial-gradient(circle, rgba(183,139,108,.62) 0 1.7px, transparent 1.9px)
+        left center / 8px 4px repeat-x;
+      pointer-events:none;
     }
     .date-main .weekday{
       color:var(--muted);
-      font-size:14px;
-      margin-top:5px;
+      font-size:13px;
+      margin-top:4px;
       transition:color .18s ease;
     }
     .date-main .weekday.is-saturday{
@@ -1092,7 +1090,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.56</div>
+    <div class="version">Stamp Card v1.9.57</div>
   </div>
 </div>
 
@@ -1449,7 +1447,7 @@
     const d = parseDate(dateStr);
     return {
       date:`${d.getMonth()+1}/${d.getDate()}`,
-      weekday:["日曜日","月曜日","火曜日","水曜日","木曜日","金曜日","土曜日"][d.getDay()]
+      weekday:`（${["日","月","火","水","木","金","土"][d.getDay()]}）`
     };
   }
 
@@ -4359,7 +4357,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.56").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.57").catch(console.error);
       });
     }
   }
