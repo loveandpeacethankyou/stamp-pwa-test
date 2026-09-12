@@ -83,27 +83,17 @@
       text-align:center;
     }
     .date-main .date{
-      position:relative;
       display:inline-block;
       font-size:31px;
       line-height:1.1;
       font-weight:800;
       letter-spacing:.01em;
-      padding:4px 0 7px;
+      padding:4px 0 2px;
+      color:#9e9589;
       transition:color .18s ease;
     }
-    .date-main.is-today .date::after{
-      content:"";
-      position:absolute;
-      left:50%;
-      bottom:0;
-      width:44px;
-      height:4px;
-      transform:translateX(-50%);
-      background:
-        radial-gradient(circle, rgba(183,139,108,.62) 0 1.7px, transparent 1.9px)
-        left center / 8px 4px repeat-x;
-      pointer-events:none;
+    .date-main.is-today .date{
+      color:var(--ink);
     }
     .date-main .weekday{
       color:var(--muted);
@@ -1090,7 +1080,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.57</div>
+    <div class="version">Stamp Card v1.9.58</div>
   </div>
 </div>
 
@@ -4357,7 +4347,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.57").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.58").catch(console.error);
       });
     }
   }
