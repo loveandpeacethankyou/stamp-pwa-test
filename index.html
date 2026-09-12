@@ -1136,7 +1136,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.60</div>
+    <div class="version">Stamp Card v1.9.61</div>
   </div>
 </div>
 
@@ -1875,9 +1875,16 @@
     weekdayEl.classList.toggle("is-sunday-holiday", selectedDay.getDay()===0 || isHoliday);
     $("todayBtn").style.display = isToday ? "none" : "block";
     const googleCalendarDate = selectedDate;
-    requestGoogleCalendarEvents(googleCalendarDate).catch(err=>{
+    requestGoogleCalendarEvents(googleCalendarDate).then(()=>{
+      if(selectedDate === googleCalendarDate){
+        scheduleGoogleCalendarPrefetch(googleCalendarDate);
+      }
+    }).catch(err=>{
       console.warn("Google Calendar read failed:", err);
-      if(selectedDate === googleCalendarDate) hideGoogleCalendarEvents();
+      // 端末キャッシュがある場合は消さず、そのまま表示を残す。
+      if(selectedDate === googleCalendarDate && !googleCalendarCache.has(googleCalendarDate)){
+        hideGoogleCalendarEvents();
+      }
     });
 
     const grid = $("stampGrid");
@@ -4353,8 +4360,43 @@
 
   const GOOGLE_CALENDAR_URL_STORAGE = "stamp-card-google-calendar-url";
   const GOOGLE_CALENDAR_KEY_STORAGE = "stamp-card-google-calendar-key";
+  const GOOGLE_CALENDAR_CACHE_STORAGE = "stamp-card-google-calendar-cache-v1";
+  const GOOGLE_CALENDAR_FRESH_MS = 15 * 60 * 1000;
+  const GOOGLE_CALENDAR_MAX_CACHE_DATES = 60;
   const googleCalendarCache = new Map();
   let googleCalendarRequest = null;
+  let googleCalendarPrefetchTimer = null;
+
+  function loadGoogleCalendarPersistentCache(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(GOOGLE_CALENDAR_CACHE_STORAGE) || "{}");
+      for(const [dateStr, entry] of Object.entries(raw)){
+        if(!entry || !Array.isArray(entry.events) || !Number.isFinite(entry.savedAt)) continue;
+        googleCalendarCache.set(dateStr, {events:entry.events, savedAt:entry.savedAt});
+      }
+    }catch(err){
+      console.warn("Google Calendar cache load failed:", err);
+    }
+  }
+
+  function persistGoogleCalendarCache(){
+    try{
+      const entries = [...googleCalendarCache.entries()]
+        .sort((a,b)=>(b[1]?.savedAt || 0) - (a[1]?.savedAt || 0))
+        .slice(0, GOOGLE_CALENDAR_MAX_CACHE_DATES);
+      const obj = Object.fromEntries(entries);
+      localStorage.setItem(GOOGLE_CALENDAR_CACHE_STORAGE, JSON.stringify(obj));
+    }catch(err){
+      console.warn("Google Calendar cache save failed:", err);
+    }
+  }
+
+  function clearGoogleCalendarCache(){
+    googleCalendarCache.clear();
+    localStorage.removeItem(GOOGLE_CALENDAR_CACHE_STORAGE);
+  }
+
+  loadGoogleCalendarPersistentCache();
 
   function getGoogleCalendarConfig(){
     return {
@@ -4450,9 +4492,15 @@
 
     const cached = googleCalendarCache.get(dateStr);
     const now = Date.now();
-    if(!options.force && cached && now - cached.savedAt < 5 * 60 * 1000){
-      renderGoogleCalendarEvents(dateStr, cached.events);
-      return Promise.resolve(cached.events);
+
+    // まず端末キャッシュを即表示。古くても一旦表示して、裏で最新化する。
+    if(!options.force && cached){
+      if(options.render !== false) renderGoogleCalendarEvents(dateStr, cached.events);
+      if(now - cached.savedAt < GOOGLE_CALENDAR_FRESH_MS){
+        return Promise.resolve(cached.events);
+      }
+    }else if(!cached && options.render !== false && dateStr === selectedDate){
+      hideGoogleCalendarEvents();
     }
 
     cleanupGoogleCalendarRequest();
@@ -4498,9 +4546,10 @@
           events:data.events,
           savedAt:Date.now()
         });
+        persistGoogleCalendarCache();
 
         cleanupGoogleCalendarRequest();
-        renderGoogleCalendarEvents(dateStr, data.events);
+        if(options.render !== false) renderGoogleCalendarEvents(dateStr, data.events);
         resolve(data.events);
       };
 
@@ -4523,6 +4572,27 @@
     });
   }
 
+  function scheduleGoogleCalendarPrefetch(centerDate){
+    clearTimeout(googleCalendarPrefetchTimer);
+    googleCalendarPrefetchTimer = setTimeout(async ()=>{
+      const offsets = [1,-1,2,-2,3,-3];
+      for(const offset of offsets){
+        if(selectedDate !== centerDate) break;
+        const dateStr = addDays(centerDate, offset);
+        const cached = googleCalendarCache.get(dateStr);
+        if(cached && Date.now() - cached.savedAt < GOOGLE_CALENDAR_FRESH_MS) continue;
+
+        try{
+          await requestGoogleCalendarEvents(dateStr, {render:false});
+        }catch(err){
+          // 先読みは失敗しても表の表示には影響させない。
+          console.debug("Google Calendar prefetch skipped:", dateStr, err?.message || err);
+          break;
+        }
+      }
+    }, 500);
+  }
+
   async function saveGoogleCalendarSettings(){
     const url = normalizeGoogleCalendarUrl($("googleCalendarUrl").value);
     const key = $("googleCalendarKey").value.trim();
@@ -4538,7 +4608,7 @@
 
     localStorage.setItem(GOOGLE_CALENDAR_URL_STORAGE, url);
     localStorage.setItem(GOOGLE_CALENDAR_KEY_STORAGE, key);
-    googleCalendarCache.clear();
+    clearGoogleCalendarCache();
     updateGoogleCalendarSettingsUI("接続確認中…");
 
     try{
@@ -4553,7 +4623,7 @@
   function clearGoogleCalendarSettings(){
     localStorage.removeItem(GOOGLE_CALENDAR_URL_STORAGE);
     localStorage.removeItem(GOOGLE_CALENDAR_KEY_STORAGE);
-    googleCalendarCache.clear();
+    clearGoogleCalendarCache();
     cleanupGoogleCalendarRequest();
     $("googleCalendarUrl").value = "";
     $("googleCalendarKey").value = "";
@@ -4630,7 +4700,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.60").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.61").catch(console.error);
       });
     }
   }
