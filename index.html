@@ -952,6 +952,49 @@
       line-height:1.5;
       word-break:break-word;
     }
+    .google-events{
+      display:none;
+      margin:0 auto 9px;
+      padding:0 8px;
+      max-width:92%;
+      text-align:center;
+      color:#746f68;
+      font-size:13px;
+      line-height:1.45;
+    }
+    .google-events.show{
+      display:block;
+    }
+    .google-event{
+      display:flex;
+      justify-content:center;
+      align-items:baseline;
+      gap:6px;
+      min-height:19px;
+    }
+    .google-event + .google-event{
+      margin-top:1px;
+    }
+    .google-event-time{
+      color:#9e9589;
+      font-size:11px;
+      font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    .google-event-title{
+      font-weight:650;
+      word-break:break-word;
+    }
+    .google-calendar-actions{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:8px;
+      margin-top:8px;
+    }
+    .google-calendar-actions .secondary:last-child{
+      padding-left:13px;
+      padding-right:13px;
+    }
   </style>
 </head>
 <body>
@@ -972,6 +1015,7 @@
       <button id="nextDayBtn" class="round-btn" aria-label="次の日">›</button>
     </div>
     <button id="todayBtn" class="today-btn">今日に戻る</button>
+    <div id="googleEvents" class="google-events" aria-live="polite"></div>
 
     <div id="reorderBanner" class="reorder-banner">
       <span>スタンプをドラッグして並べ替え</span>
@@ -1080,7 +1124,19 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.58</div>
+    <div class="cloud-section">
+      <h3 class="backup-title">Googleカレンダー</h3>
+      <div class="backup-note" style="margin:0 0 10px">Apps ScriptのウェブアプリURLと秘密キーを、この端末だけに保存します。</div>
+      <input id="googleCalendarUrl" type="url" inputmode="url" autocomplete="off" placeholder="ウェブアプリURL（…/exec）">
+      <input id="googleCalendarKey" type="password" autocomplete="off" placeholder="秘密キー">
+      <div class="google-calendar-actions">
+        <button id="googleCalendarSaveBtn" type="button" class="secondary full">保存・接続確認</button>
+        <button id="googleCalendarClearBtn" type="button" class="secondary">解除</button>
+      </div>
+      <div id="googleCalendarStatus" class="cloud-status">未設定</div>
+    </div>
+
+    <div class="version">Stamp Card v1.9.59</div>
   </div>
 </div>
 
@@ -1818,6 +1874,11 @@
     weekdayEl.classList.toggle("is-saturday", selectedDay.getDay()===6 && !isHoliday);
     weekdayEl.classList.toggle("is-sunday-holiday", selectedDay.getDay()===0 || isHoliday);
     $("todayBtn").style.display = isToday ? "none" : "block";
+    const googleCalendarDate = selectedDate;
+    requestGoogleCalendarEvents(googleCalendarDate).catch(err=>{
+      console.warn("Google Calendar read failed:", err);
+      if(selectedDate === googleCalendarDate) hideGoogleCalendarEvents();
+    });
 
     const grid = $("stampGrid");
     grid.innerHTML = "";
@@ -4290,10 +4351,208 @@
     });
   });
 
+  const GOOGLE_CALENDAR_URL_STORAGE = "stamp-card-google-calendar-url";
+  const GOOGLE_CALENDAR_KEY_STORAGE = "stamp-card-google-calendar-key";
+  const googleCalendarCache = new Map();
+  let googleCalendarRequest = null;
+
+  function getGoogleCalendarConfig(){
+    return {
+      url:(localStorage.getItem(GOOGLE_CALENDAR_URL_STORAGE) || "").trim(),
+      key:localStorage.getItem(GOOGLE_CALENDAR_KEY_STORAGE) || ""
+    };
+  }
+
+  function normalizeGoogleCalendarUrl(value){
+    const raw = String(value || "").trim();
+    if(!raw) return "";
+    try{
+      const url = new URL(raw);
+      if(url.protocol !== "https:" || url.hostname !== "script.google.com") return "";
+      if(!url.pathname.startsWith("/macros/s/") || !url.pathname.endsWith("/exec")) return "";
+      return `${url.origin}${url.pathname}`;
+    }catch{
+      return "";
+    }
+  }
+
+  function updateGoogleCalendarSettingsUI(message=null){
+    const config = getGoogleCalendarConfig();
+    const urlInput = $("googleCalendarUrl");
+    const keyInput = $("googleCalendarKey");
+    if(urlInput && document.activeElement !== urlInput) urlInput.value = config.url;
+    if(keyInput && document.activeElement !== keyInput) keyInput.value = config.key;
+
+    const status = $("googleCalendarStatus");
+    if(!status) return;
+    if(message){
+      status.textContent = message;
+    }else{
+      status.textContent = config.url && config.key ? "連携済み" : "未設定";
+    }
+  }
+
+  function cleanupGoogleCalendarRequest(){
+    if(!googleCalendarRequest) return;
+    clearTimeout(googleCalendarRequest.timeoutId);
+    try{ googleCalendarRequest.iframe.remove(); }catch{}
+    googleCalendarRequest = null;
+  }
+
+  function renderGoogleCalendarEvents(dateStr, events){
+    if(dateStr !== selectedDate) return;
+    const root = $("googleEvents");
+    if(!root) return;
+    root.innerHTML = "";
+
+    if(!Array.isArray(events) || !events.length){
+      root.classList.remove("show");
+      return;
+    }
+
+    for(const event of events){
+      const row = document.createElement("div");
+      row.className = "google-event";
+
+      if(event?.time){
+        const time = document.createElement("span");
+        time.className = "google-event-time";
+        time.textContent = event.time;
+        row.appendChild(time);
+      }
+
+      const title = document.createElement("span");
+      title.className = "google-event-title";
+      title.textContent = String(event?.title || "予定");
+      row.appendChild(title);
+      root.appendChild(row);
+    }
+
+    root.classList.add("show");
+  }
+
+  function hideGoogleCalendarEvents(){
+    const root = $("googleEvents");
+    if(!root) return;
+    root.innerHTML = "";
+    root.classList.remove("show");
+  }
+
+  function requestGoogleCalendarEvents(dateStr, options={}){
+    const config = getGoogleCalendarConfig();
+    if(!config.url || !config.key){
+      hideGoogleCalendarEvents();
+      return Promise.resolve(null);
+    }
+
+    const cached = googleCalendarCache.get(dateStr);
+    const now = Date.now();
+    if(!options.force && cached && now - cached.savedAt < 5 * 60 * 1000){
+      renderGoogleCalendarEvents(dateStr, cached.events);
+      return Promise.resolve(cached.events);
+    }
+
+    cleanupGoogleCalendarRequest();
+
+    return new Promise((resolve,reject)=>{
+      const iframe = document.createElement("iframe");
+      iframe.hidden = true;
+      iframe.setAttribute("aria-hidden","true");
+
+      const src = new URL(config.url);
+      src.searchParams.set("key", config.key);
+      src.searchParams.set("date", dateStr);
+      // キャッシュを避けるための無害な値。Apps Script側は無視する。
+      src.searchParams.set("_", String(Date.now()));
+
+      const timeoutId = setTimeout(()=>{
+        if(googleCalendarRequest?.iframe === iframe){
+          cleanupGoogleCalendarRequest();
+        }else{
+          try{ iframe.remove(); }catch{}
+        }
+        reject(new Error("Google Calendar timeout"));
+      }, 15000);
+
+      googleCalendarRequest = {iframe, dateStr, timeoutId, resolve, reject};
+      iframe.src = src.toString();
+      document.body.appendChild(iframe);
+    });
+  }
+
+  window.addEventListener("message", event=>{
+    const req = googleCalendarRequest;
+    if(!req || event.source !== req.iframe.contentWindow) return;
+
+    const data = event.data;
+    if(!data || typeof data !== "object" || data.ok !== true) return;
+    if(data.date !== req.dateStr || !Array.isArray(data.events)) return;
+
+    googleCalendarCache.set(req.dateStr, {
+      events:data.events,
+      savedAt:Date.now()
+    });
+
+    const resolve = req.resolve;
+    const dateStr = req.dateStr;
+    cleanupGoogleCalendarRequest();
+    renderGoogleCalendarEvents(dateStr, data.events);
+    resolve(data.events);
+  });
+
+  async function saveGoogleCalendarSettings(){
+    const url = normalizeGoogleCalendarUrl($("googleCalendarUrl").value);
+    const key = $("googleCalendarKey").value.trim();
+
+    if(!url){
+      alert("ウェブアプリURLは、Apps Scriptの末尾が /exec のURLを入れてください。");
+      return;
+    }
+    if(!key){
+      alert("秘密キーを入力してください。");
+      return;
+    }
+
+    localStorage.setItem(GOOGLE_CALENDAR_URL_STORAGE, url);
+    localStorage.setItem(GOOGLE_CALENDAR_KEY_STORAGE, key);
+    googleCalendarCache.clear();
+    updateGoogleCalendarSettingsUI("接続確認中…");
+
+    try{
+      const events = await requestGoogleCalendarEvents(selectedDate, {force:true});
+      updateGoogleCalendarSettingsUI(`接続OK ／ この日の予定 ${events?.length || 0}件`);
+    }catch(err){
+      console.error(err);
+      updateGoogleCalendarSettingsUI("接続できませんでした。URLと秘密キーを確認してください");
+    }
+  }
+
+  function clearGoogleCalendarSettings(){
+    localStorage.removeItem(GOOGLE_CALENDAR_URL_STORAGE);
+    localStorage.removeItem(GOOGLE_CALENDAR_KEY_STORAGE);
+    googleCalendarCache.clear();
+    cleanupGoogleCalendarRequest();
+    $("googleCalendarUrl").value = "";
+    $("googleCalendarKey").value = "";
+    updateGoogleCalendarSettingsUI("未設定");
+    hideGoogleCalendarEvents();
+  }
+
+  $("googleCalendarSaveBtn").addEventListener("click",()=>{
+    saveGoogleCalendarSettings().catch(console.error);
+  });
+
+  $("googleCalendarClearBtn").addEventListener("click",()=>{
+    if(confirm("Googleカレンダー連携をこの端末から解除しますか？")){
+      clearGoogleCalendarSettings();
+    }
+  });
+
   function openSettings(){
     if(reorderMode) exitReorderMode();
     renderManage();
     updateCloudUI();
+    updateGoogleCalendarSettingsUI();
     openOverlay("settingsOverlay");
   }
   $("settingsBtn").onclick = openSettings;
@@ -4326,6 +4585,7 @@
     }
 
     updateCloudUI();
+    updateGoogleCalendarSettingsUI();
 
     // SEを先に読み込み・デコードして、タップ時の遅延を減らす。
     preloadStampSound().catch(()=>{});
@@ -4347,7 +4607,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.58").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.59").catch(console.error);
       });
     }
   }
