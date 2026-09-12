@@ -83,15 +83,41 @@
       text-align:center;
     }
     .date-main .date{
+      display:inline-block;
       font-size:31px;
       line-height:1.1;
       font-weight:800;
       letter-spacing:.01em;
+      padding:4px 10px 5px;
+      border-radius:999px;
+      transition:background .18s ease, box-shadow .18s ease, color .18s ease;
+    }
+    .date-main.is-today .date{
+      background:rgba(221,184,156,.20);
+      box-shadow:inset 0 0 0 1px rgba(183,139,108,.18);
+    }
+    .date-main.is-today .date::after{
+      content:"";
+      display:inline-block;
+      width:6px;
+      height:6px;
+      margin-left:7px;
+      margin-bottom:4px;
+      border-radius:50%;
+      background:#b77962;
+      opacity:.72;
     }
     .date-main .weekday{
       color:var(--muted);
       font-size:14px;
       margin-top:5px;
+      transition:color .18s ease;
+    }
+    .date-main .weekday.is-saturday{
+      color:#748ca7;
+    }
+    .date-main .weekday.is-sunday-holiday{
+      color:#b77a7a;
     }
     .round-btn{
       width:46px;
@@ -1066,7 +1092,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.55</div>
+    <div class="version">Stamp Card v1.9.56</div>
   </div>
 </div>
 
@@ -1427,6 +1453,104 @@
     };
   }
 
+  function nthWeekdayOfMonth(year, monthIndex, weekday, nth){
+    const first = new Date(year, monthIndex, 1, 12);
+    const offset = (weekday - first.getDay() + 7) % 7;
+    return 1 + offset + (nth - 1) * 7;
+  }
+
+  function japaneseEquinoxDay(year, autumn=false){
+    // 1980〜2099向けの近似式。現在〜今世紀の表示用途には十分な精度。
+    const base = autumn ? 23.2488 : 20.8431;
+    const day = Math.floor(base + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+    return day;
+  }
+
+  function baseJapaneseHolidaySet(year){
+    const set = new Set();
+    const add = (m,d)=>set.add(`${year}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
+
+    add(1,1); // 元日
+    add(1,nthWeekdayOfMonth(year,0,1,2)); // 成人の日
+    add(2,11); // 建国記念の日
+    if(year >= 2020) add(2,23); // 天皇誕生日
+    add(3,japaneseEquinoxDay(year,false)); // 春分の日
+    add(4,29); // 昭和の日
+    add(5,3);  // 憲法記念日
+    add(5,4);  // みどりの日
+    add(5,5);  // こどもの日
+
+    // 2020/2021の五輪特例。それ以外は通常規則。
+    if(year===2020){
+      add(7,23); // 海の日
+      add(7,24); // スポーツの日
+      add(8,10); // 山の日
+    }else if(year===2021){
+      add(7,22);
+      add(7,23);
+      add(8,8);
+    }else{
+      add(7,nthWeekdayOfMonth(year,6,1,3)); // 海の日
+      add(8,11); // 山の日
+      add(10,nthWeekdayOfMonth(year,9,1,2)); // スポーツの日
+    }
+
+    add(9,nthWeekdayOfMonth(year,8,1,3)); // 敬老の日
+    add(9,japaneseEquinoxDay(year,true)); // 秋分の日
+    add(11,3);  // 文化の日
+    add(11,23); // 勤労感謝の日
+
+    // 2019の即位関連の特例日。
+    if(year===2019){
+      add(4,30); add(5,1); add(5,2); add(10,22);
+    }
+
+    return set;
+  }
+
+  const japaneseHolidayCache = new Map();
+
+  function japaneseHolidaySet(year){
+    if(japaneseHolidayCache.has(year)) return japaneseHolidayCache.get(year);
+
+    const set = baseJapaneseHolidaySet(year);
+
+    // 「国民の休日」：祝日に挟まれた平日。
+    const start = new Date(year,0,2,12);
+    const end = new Date(year,11,30,12);
+    for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+      const ds = toDateStr(d);
+      if(set.has(ds)) continue;
+      const prev = new Date(d); prev.setDate(prev.getDate()-1);
+      const next = new Date(d); next.setDate(next.getDate()+1);
+      if(set.has(toDateStr(prev)) && set.has(toDateStr(next))){
+        set.add(ds);
+      }
+    }
+
+    // 振替休日：日曜の祝日の直後にある最初の非祝日。
+    const originals = [...set].sort();
+    for(const ds of originals){
+      const d = parseDate(ds);
+      if(d.getDay() !== 0) continue;
+      const substitute = new Date(d);
+      do{
+        substitute.setDate(substitute.getDate()+1);
+      }while(set.has(toDateStr(substitute)));
+      if(substitute.getFullYear()===year){
+        set.add(toDateStr(substitute));
+      }
+    }
+
+    japaneseHolidayCache.set(year,set);
+    return set;
+  }
+
+  function isJapaneseHoliday(dateStr){
+    const d = parseDate(dateStr);
+    return japaneseHolidaySet(d.getFullYear()).has(dateStr);
+  }
+
   let stampBgSlideshowTimer = null;
   let stampBgIndex = 0;
   let stampBgDate = null;
@@ -1694,9 +1818,18 @@
 
   function renderHome(){
     const f = formatHomeDate(selectedDate);
+    const selectedDay = parseDate(selectedDate);
+    const isToday = selectedDate===todayStr();
+    const isHoliday = isJapaneseHoliday(selectedDate);
+    const weekdayEl = $("homeWeekday");
+    const dateMainEl = $("homeDate").parentElement;
+
     $("homeDate").textContent = f.date;
-    $("homeWeekday").textContent = f.weekday;
-    $("todayBtn").style.display = selectedDate===todayStr() ? "none" : "block";
+    weekdayEl.textContent = f.weekday;
+    dateMainEl.classList.toggle("is-today", isToday);
+    weekdayEl.classList.toggle("is-saturday", selectedDay.getDay()===6 && !isHoliday);
+    weekdayEl.classList.toggle("is-sunday-holiday", selectedDay.getDay()===0 || isHoliday);
+    $("todayBtn").style.display = isToday ? "none" : "block";
 
     const grid = $("stampGrid");
     grid.innerHTML = "";
@@ -4226,7 +4359,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.55").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.56").catch(console.error);
       });
     }
   }
