@@ -1066,7 +1066,7 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.54</div>
+    <div class="version">Stamp Card v1.9.55</div>
   </div>
 </div>
 
@@ -1530,21 +1530,26 @@
     stampBgSignature = signature;
     bg.hidden = false;
 
-    // 初期表示は一枚だけ。次の切替から二枚を重ねてクロスフェード。
-    a.style.opacity = "0";
+    // 最初の一枚はフェードさせず、最初から表示した状態で入る。
+    // 2枚目以降の切替だけクロスフェードする。
+    a.style.transition = "none";
+    b.style.transition = "none";
+    a.style.opacity = ".22";
     b.style.opacity = "0";
     setStampBgLayerImage(a, images[stampBgIndex].data);
     stampBgActiveLayer = 0;
 
-    const showFirst = ()=>{
+    const enableCrossfade = ()=>{
       requestAnimationFrame(()=>{
         requestAnimationFrame(()=>{
-          a.style.opacity = ".22";
+          a.style.transition = "";
+          b.style.transition = "";
         });
       });
     };
-    if(a.complete && a.naturalWidth) showFirst();
-    else a.addEventListener("load", showFirst, {once:true});
+
+    if(a.complete && a.naturalWidth) enableCrossfade();
+    else a.addEventListener("load", enableCrossfade, {once:true});
 
     if(images.length <= 1) return;
 
@@ -4221,7 +4226,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.54").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.55").catch(console.error);
       });
     }
   }
