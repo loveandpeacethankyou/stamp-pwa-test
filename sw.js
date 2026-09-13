@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-63-wish-list-ime-fix";
+const CACHE = "stamp-card-v1-9-64-home-layout";
 const CORE = [
   "./",
   "./index.html",
