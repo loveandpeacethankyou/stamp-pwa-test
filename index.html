@@ -305,6 +305,119 @@
     .stamp-area + .memo{
       margin-top:7px;
     }
+    .want-home-completed{
+      margin:7px 4px 0;
+      display:grid;
+      gap:1px;
+      color:#777067;
+      font-size:13px;
+      line-height:1.35;
+    }
+    .want-home-completed[hidden]{display:none}
+    .want-home-completed + .memo{
+      margin-top:7px;
+    }
+    .want-screen-head{
+      margin:4px 2px 12px;
+    }
+    .want-screen-head h2{
+      margin:0;
+      font-size:27px;
+      line-height:1.15;
+      letter-spacing:.01em;
+    }
+    .want-card{
+      background:var(--paper);
+      border:1px solid rgba(90,75,50,.08);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+      padding:14px 14px 16px;
+    }
+    .want-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:4px;
+      padding:4px;
+      margin-bottom:8px;
+      border-radius:14px;
+      background:var(--soft);
+    }
+    .want-tab{
+      border:0;
+      border-radius:11px;
+      padding:8px 10px;
+      background:transparent;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:750;
+    }
+    .want-tab.active{
+      background:var(--paper);
+      color:var(--ink);
+      box-shadow:0 2px 8px rgba(55,45,30,.06);
+    }
+    .want-list{
+      display:grid;
+    }
+    .want-row{
+      min-height:46px;
+      display:grid;
+      grid-template-columns:30px minmax(0,1fr);
+      align-items:center;
+      border-bottom:1px solid rgba(90,75,50,.09);
+    }
+    .want-row:last-child{border-bottom:0}
+    .want-circle{
+      width:23px;
+      height:23px;
+      border-radius:50%;
+      border:1.7px solid #bdb6ac;
+      background:transparent;
+      padding:0;
+      margin:0 auto;
+      position:relative;
+      flex:0 0 auto;
+    }
+    .want-circle.completed{
+      border-color:#b77b63;
+      background:rgba(183,123,99,.10);
+    }
+    .want-circle.completed::after{
+      content:"";
+      position:absolute;
+      width:10px;
+      height:10px;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      border-radius:50%;
+      background:#b77b63;
+    }
+    .want-circle.blank{
+      opacity:.62;
+      pointer-events:none;
+    }
+    .want-input{
+      width:100%;
+      min-width:0;
+      border:0;
+      outline:0;
+      background:transparent;
+      color:var(--ink);
+      font-size:16px;
+      line-height:1.35;
+      padding:11px 5px 10px 3px;
+    }
+    .want-input::placeholder{color:#b2aca4}
+    .want-row.completed .want-input{
+      color:#777067;
+    }
+    .want-empty{
+      padding:26px 8px 18px;
+      text-align:center;
+      color:var(--muted);
+      font-size:13px;
+    }
     .memo + .memo{
       margin-top:7px;
     }
@@ -619,7 +732,7 @@
       background:rgba(244,240,232,.94);
       backdrop-filter:blur(16px);
       display:grid;
-      grid-template-columns:1fr 1fr;
+      grid-template-columns:1fr 1fr 1fr;
       gap:8px;
       border-top:1px solid rgba(90,75,50,.08);
     }
@@ -1030,6 +1143,7 @@
         </div>
         <div id="stampGrid" class="stamp-grid"></div>
       </div>
+      <div id="wantHomeCompleted" class="want-home-completed" hidden></div>
       <div class="memo">
         <label for="memoInput">スタンプメモ</label>
         <textarea id="memoInput" placeholder=""></textarea>
@@ -1075,11 +1189,30 @@
       <div id="calendarGrid" class="calendar-grid"></div>
     </div>
   </section>
+
+  <section id="wantsScreen" class="screen">
+    <div class="topbar">
+      <div></div>
+      <h1>WANT LIST</h1>
+      <button id="wantsSettingsBtn" class="icon-btn" aria-label="設定">⚙︎</button>
+    </div>
+    <div class="want-screen-head">
+      <h2>やりたいこと</h2>
+    </div>
+    <div class="want-card">
+      <div class="want-tabs" role="tablist" aria-label="やりたいこと表示切替">
+        <button id="wantOpenTab" class="want-tab active" type="button" role="tab" aria-selected="true">未完了</button>
+        <button id="wantDoneTab" class="want-tab" type="button" role="tab" aria-selected="false">完了済み</button>
+      </div>
+      <div id="wantList" class="want-list"></div>
+    </div>
+  </section>
 </div>
 
 <nav class="bottom-nav">
   <button id="homeNav" class="nav-btn active">今日</button>
   <button id="calendarNav" class="nav-btn">カレンダー</button>
+  <button id="wantsNav" class="nav-btn">やりたいこと</button>
 </nav>
 
 <div id="settingsOverlay" class="overlay">
@@ -1099,7 +1232,7 @@
         <button id="importBackupBtn" type="button" class="secondary full">バックアップを読み込む</button>
       </div>
       <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
-      <div class="backup-note">スタンプ・達成記録・メモ・日記・画像をまとめて保存します。</div>
+      <div class="backup-note">スタンプ・達成記録・メモ・日記・画像・やりたいことをまとめて保存します。</div>
     </div>
 
     <div class="cloud-section">
@@ -1136,7 +1269,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.61</div>
+    <div class="version">Stamp Card v1.9.62</div>
   </div>
 </div>
 
@@ -1284,6 +1417,8 @@
   let cropDrag = null;
   let memoTimer = null;
   let diaryTimer = null;
+  let wantEditTimer = null;
+  let wantView = "open";
 
   let reorderMode = false;
   let reorderLongPressTimer = null;
@@ -1327,13 +1462,14 @@
 
   function initialState(){
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       quests: [],
       styles: [],
       completions: [],
       memos: {},
       diaries: {},
-      diaryImages: {}
+      diaryImages: {},
+      wants: []
     };
   }
 
@@ -1348,7 +1484,15 @@
       completions:Array.isArray(next.completions) ? next.completions : [],
       memos:next.memos && typeof next.memos==="object" ? next.memos : {},
       diaries:next.diaries && typeof next.diaries==="object" ? next.diaries : {},
-      diaryImages:next.diaryImages && typeof next.diaryImages==="object" ? next.diaryImages : {}
+      diaryImages:next.diaryImages && typeof next.diaryImages==="object" ? next.diaryImages : {},
+      wants:Array.isArray(next.wants) ? next.wants.map((item,index)=>({
+        id:item?.id || uid("want"),
+        text:String(item?.text || ""),
+        createdAt:item?.createdAt || new Date().toISOString(),
+        completedAt:item?.completedAt || null,
+        completedDate:item?.completedDate || null,
+        order:Number.isFinite(item?.order) ? item.order : index
+      })).filter(item=>item.text.trim()) : []
     };
   }
 
@@ -1860,6 +2004,269 @@
     el.style.height = `${Math.max(68, el.scrollHeight)}px`;
   }
 
+  function wantsSorted(completed){
+    const rows = (state.wants || []).filter(item=>completed ? !!item.completedAt : !item.completedAt);
+    if(completed){
+      return rows.sort((a,b)=>String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
+    }
+    return rows.sort((a,b)=>(a.order ?? 0) - (b.order ?? 0));
+  }
+
+  function nextWantOrder(){
+    const open = (state.wants || []).filter(item=>!item.completedAt);
+    return open.reduce((max,item)=>Math.max(max, Number.isFinite(item.order) ? item.order : 0), -1) + 1;
+  }
+
+  function scheduleWantSave(){
+    clearTimeout(wantEditTimer);
+    wantEditTimer = setTimeout(()=>{
+      saveState().catch(console.error);
+    }, 500);
+  }
+
+  function renderHomeCompletedWants(){
+    const root = $("wantHomeCompleted");
+    if(!root) return;
+    const items = (state.wants || [])
+      .filter(item=>item.completedAt && item.completedDate===selectedDate)
+      .sort((a,b)=>String(a.completedAt || "").localeCompare(String(b.completedAt || "")));
+
+    root.innerHTML = "";
+    if(!items.length){
+      root.hidden = true;
+      return;
+    }
+
+    for(const item of items){
+      const line = document.createElement("div");
+      line.textContent = item.text;
+      root.appendChild(line);
+    }
+    root.hidden = false;
+  }
+
+  async function toggleWantCompleted(id){
+    const item = (state.wants || []).find(x=>x.id===id);
+    if(!item) return;
+
+    if(item.completedAt){
+      item.completedAt = null;
+      item.completedDate = null;
+      item.order = nextWantOrder();
+    }else{
+      const now = new Date();
+      item.completedAt = now.toISOString();
+      item.completedDate = toDateStr(now);
+    }
+
+    clearTimeout(wantEditTimer);
+    await saveState();
+    renderWants();
+    renderHomeCompletedWants();
+  }
+
+  function focusWantInputById(id){
+    requestAnimationFrame(()=>{
+      const el = Array.from(document.querySelectorAll(".want-input"))
+        .find(input=>input.dataset.wantId===id);
+      if(el){
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    });
+  }
+
+  function focusBlankWantInput(){
+    requestAnimationFrame(()=>{
+      const el = document.querySelector('.want-input[data-want-blank="1"]');
+      if(el) el.focus();
+    });
+  }
+
+  function appendWantBlankRow(root){
+    if(root.querySelector('[data-want-blank="1"]')) return;
+
+    const row = document.createElement("div");
+    row.className = "want-row";
+
+    const circle = document.createElement("button");
+    circle.type = "button";
+    circle.className = "want-circle blank";
+    circle.tabIndex = -1;
+    circle.setAttribute("aria-hidden","true");
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "want-input";
+    input.dataset.wantBlank = "1";
+    input.placeholder = "やりたいことを入力";
+    input.autocomplete = "off";
+
+    input.addEventListener("input",()=>{
+      const text = input.value;
+      if(!text.trim()) return;
+
+      const item = {
+        id:uid("want"),
+        text,
+        createdAt:new Date().toISOString(),
+        completedAt:null,
+        completedDate:null,
+        order:nextWantOrder()
+      };
+      state.wants.push(item);
+      input.dataset.wantId = item.id;
+      delete input.dataset.wantBlank;
+      scheduleWantSave();
+      appendWantBlankRow(root);
+    });
+
+    input.addEventListener("input",()=>{
+      const id = input.dataset.wantId;
+      if(!id) return;
+      const item = state.wants.find(x=>x.id===id);
+      if(item){
+        item.text = input.value;
+        scheduleWantSave();
+      }
+    });
+
+    input.addEventListener("keydown",e=>{
+      if(e.key!=="Enter") return;
+      e.preventDefault();
+      const id = input.dataset.wantId;
+      if(id){
+        const item = state.wants.find(x=>x.id===id);
+        if(item) item.text = input.value.trim();
+        clearTimeout(wantEditTimer);
+        saveState().catch(console.error);
+      }
+      focusBlankWantInput();
+    });
+
+    input.addEventListener("blur",()=>{
+      const id = input.dataset.wantId;
+      if(!id) return;
+      const item = state.wants.find(x=>x.id===id);
+      if(!item) return;
+      const text = input.value.trim();
+      if(text){
+        item.text = text;
+        input.value = text;
+        scheduleWantSave();
+      }else{
+        state.wants = state.wants.filter(x=>x.id!==id);
+        clearTimeout(wantEditTimer);
+        saveState().catch(console.error);
+        renderWants();
+      }
+    });
+
+    row.append(circle,input);
+    root.appendChild(row);
+  }
+
+  function makeWantRow(item){
+    const row = document.createElement("div");
+    row.className = "want-row" + (item.completedAt ? " completed" : "");
+
+    const circle = document.createElement("button");
+    circle.type = "button";
+    circle.className = "want-circle" + (item.completedAt ? " completed" : "");
+    circle.setAttribute("aria-label", item.completedAt ? "未完了に戻す" : "完了にする");
+    circle.addEventListener("click",()=>toggleWantCompleted(item.id));
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "want-input";
+    input.dataset.wantId = item.id;
+    input.value = item.text;
+    input.autocomplete = "off";
+
+    input.addEventListener("input",()=>{
+      item.text = input.value;
+      if(item.completedAt) renderHomeCompletedWants();
+      scheduleWantSave();
+    });
+
+    input.addEventListener("keydown",e=>{
+      if(e.key==="Enter"){
+        e.preventDefault();
+        item.text = input.value.trim();
+        clearTimeout(wantEditTimer);
+        saveState().catch(console.error);
+
+        const visible = wantsSorted(wantView==="done");
+        const index = visible.findIndex(x=>x.id===item.id);
+        const next = visible[index+1];
+        if(next) focusWantInputById(next.id);
+        else if(wantView==="open") focusBlankWantInput();
+        return;
+      }
+
+      if(e.key==="Backspace" && !input.value && !item.completedAt){
+        e.preventDefault();
+        const visible = wantsSorted(false);
+        const index = visible.findIndex(x=>x.id===item.id);
+        const prev = visible[index-1];
+        state.wants = state.wants.filter(x=>x.id!==item.id);
+        clearTimeout(wantEditTimer);
+        saveState().catch(console.error);
+        renderWants();
+        if(prev) focusWantInputById(prev.id);
+        else focusBlankWantInput();
+      }
+    });
+
+    input.addEventListener("blur",()=>{
+      const text = input.value.trim();
+      if(text){
+        item.text = text;
+        input.value = text;
+        scheduleWantSave();
+      }else{
+        state.wants = state.wants.filter(x=>x.id!==item.id);
+        clearTimeout(wantEditTimer);
+        saveState().catch(console.error);
+        renderWants();
+        renderHomeCompletedWants();
+      }
+    });
+
+    row.append(circle,input);
+    return row;
+  }
+
+  function renderWants(){
+    const root = $("wantList");
+    if(!root || !state) return;
+    root.innerHTML = "";
+
+    const completed = wantView === "done";
+    const items = wantsSorted(completed);
+
+    $("wantOpenTab").classList.toggle("active", !completed);
+    $("wantDoneTab").classList.toggle("active", completed);
+    $("wantOpenTab").setAttribute("aria-selected", String(!completed));
+    $("wantDoneTab").setAttribute("aria-selected", String(completed));
+
+    if(completed && !items.length){
+      const empty = document.createElement("div");
+      empty.className = "want-empty";
+      empty.textContent = "完了済みはまだありません";
+      root.appendChild(empty);
+      return;
+    }
+
+    for(const item of items){
+      root.appendChild(makeWantRow(item));
+    }
+
+    if(!completed){
+      appendWantBlankRow(root);
+    }
+  }
+
   function renderHome(){
     const f = formatHomeDate(selectedDate);
     const selectedDay = parseDate(selectedDate);
@@ -1962,6 +2369,7 @@
     autoGrowTextarea($("memoInput"));
     autoGrowTextarea($("diaryInput"));
     renderStampAreaBackground();
+    renderHomeCompletedWants();
     renderDiaryImages();
   }
 
@@ -2745,15 +3153,22 @@
   function showScreen(name){
     if(name!=="home" && reorderMode) exitReorderMode();
     const home = name==="home";
+    const calendar = name==="calendar";
+    const wants = name==="wants";
     if(!home) stopStampAreaBackgroundSlideshow();
-    $("homeScreen").classList.toggle("active",home);
-    $("calendarScreen").classList.toggle("active",!home);
-    $("homeNav").classList.toggle("active",home);
-    $("calendarNav").classList.toggle("active",!home);
 
-    if(!home){
+    $("homeScreen").classList.toggle("active",home);
+    $("calendarScreen").classList.toggle("active",calendar);
+    $("wantsScreen").classList.toggle("active",wants);
+    $("homeNav").classList.toggle("active",home);
+    $("calendarNav").classList.toggle("active",calendar);
+    $("wantsNav").classList.toggle("active",wants);
+
+    if(calendar){
       calendarCursor = firstOfMonth(parseDate(selectedDate));
       renderCalendar();
+    }else if(wants){
+      renderWants();
     }
   }
 
@@ -3421,6 +3836,9 @@
 
   $("homeNav").onclick = ()=>showScreen("home");
   $("calendarNav").onclick = ()=>showScreen("calendar");
+  $("wantsNav").onclick = ()=>showScreen("wants");
+  $("wantOpenTab").onclick = ()=>{ wantView = "open"; renderWants(); };
+  $("wantDoneTab").onclick = ()=>{ wantView = "done"; renderWants(); };
   $("reorderDoneBtn").onclick = exitReorderMode;
 
   $("newQuestFromSettings").onclick = ()=>{
@@ -3483,7 +3901,8 @@
     const summary =
       `このバックアップを読み込みますか？\n\n` +
       `スタンプ：${incoming.quests.length}件\n` +
-      `達成記録：${incoming.completions.length}件\n\n` +
+      `達成記録：${incoming.completions.length}件\n` +
+      `やりたいこと：${incoming.wants.length}件\n\n` +
       `現在のデータは上書きされます。`;
 
     if(!confirm(summary)) return;
@@ -3494,6 +3913,7 @@
       renderHome();
       renderCalendar();
       renderManage();
+      renderWants();
       alert("バックアップを読み込みました。");
     }catch(err){
       console.error(err);
@@ -3638,7 +4058,8 @@
       s.completions.length===0 &&
       Object.keys(s.memos || {}).length===0 &&
       Object.keys(s.diaries || {}).length===0 &&
-      Object.keys(s.diaryImages || {}).length===0
+      Object.keys(s.diaryImages || {}).length===0 &&
+      (s.wants || []).length===0
     );
   }
 
@@ -3723,6 +4144,7 @@
     renderHome();
     renderCalendar();
     renderManage();
+    renderWants();
   }
 
   async function cloudLogin(){
@@ -4650,6 +5072,7 @@
   }
   $("settingsBtn").onclick = openSettings;
   $("calendarSettingsBtn").onclick = openSettings;
+  $("wantsSettingsBtn").onclick = openSettings;
 
   document.querySelectorAll("[data-close]").forEach(btn=>{
     btn.addEventListener("click",()=>closeOverlay(btn.dataset.close));
@@ -4671,6 +5094,7 @@
       state = await loadState();
       renderHome();
       renderCalendar();
+      renderWants();
     }catch(err){
       console.error(err);
       alert("データの読み込みに失敗しました");
@@ -4700,7 +5124,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.61").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.62").catch(console.error);
       });
     }
   }
