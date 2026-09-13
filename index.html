@@ -1193,11 +1193,8 @@
   <section id="wantsScreen" class="screen">
     <div class="topbar">
       <div></div>
-      <h1>WANT LIST</h1>
+      <h1>WISH LIST</h1>
       <button id="wantsSettingsBtn" class="icon-btn" aria-label="設定">⚙︎</button>
-    </div>
-    <div class="want-screen-head">
-      <h2>やりたいこと</h2>
     </div>
     <div class="want-card">
       <div class="want-tabs" role="tablist" aria-label="やりたいこと表示切替">
@@ -1269,7 +1266,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.62</div>
+    <div class="version">Stamp Card v1.9.63</div>
   </div>
 </div>
 
@@ -2102,10 +2099,15 @@
     input.placeholder = "やりたいことを入力";
     input.autocomplete = "off";
 
-    input.addEventListener("input",()=>{
-      const text = input.value;
-      if(!text.trim()) return;
+    let composing = false;
+    let committing = false;
 
+    const commitBlank = async ({focusNext=false}={})=>{
+      if(committing || composing) return false;
+      const text = input.value.trim();
+      if(!text) return false;
+
+      committing = true;
       const item = {
         id:uid("want"),
         text,
@@ -2115,51 +2117,36 @@
         order:nextWantOrder()
       };
       state.wants.push(item);
-      input.dataset.wantId = item.id;
-      delete input.dataset.wantBlank;
-      scheduleWantSave();
-      appendWantBlankRow(root);
+      clearTimeout(wantEditTimer);
+      try{
+        await saveState();
+      }catch(err){
+        console.error(err);
+      }
+      renderWants();
+      if(focusNext) focusBlankWantInput();
+      return true;
+    };
+
+    input.addEventListener("compositionstart",()=>{
+      composing = true;
     });
 
-    input.addEventListener("input",()=>{
-      const id = input.dataset.wantId;
-      if(!id) return;
-      const item = state.wants.find(x=>x.id===id);
-      if(item){
-        item.text = input.value;
-        scheduleWantSave();
-      }
+    input.addEventListener("compositionend",()=>{
+      composing = false;
     });
 
     input.addEventListener("keydown",e=>{
       if(e.key!=="Enter") return;
+      // 日本語IMEの変換確定Enterでは行を追加しない。
+      if(composing || e.isComposing || e.keyCode===229) return;
       e.preventDefault();
-      const id = input.dataset.wantId;
-      if(id){
-        const item = state.wants.find(x=>x.id===id);
-        if(item) item.text = input.value.trim();
-        clearTimeout(wantEditTimer);
-        saveState().catch(console.error);
-      }
-      focusBlankWantInput();
+      commitBlank({focusNext:true});
     });
 
     input.addEventListener("blur",()=>{
-      const id = input.dataset.wantId;
-      if(!id) return;
-      const item = state.wants.find(x=>x.id===id);
-      if(!item) return;
-      const text = input.value.trim();
-      if(text){
-        item.text = text;
-        input.value = text;
-        scheduleWantSave();
-      }else{
-        state.wants = state.wants.filter(x=>x.id!==id);
-        clearTimeout(wantEditTimer);
-        saveState().catch(console.error);
-        renderWants();
-      }
+      if(composing) return;
+      if(input.value.trim()) commitBlank();
     });
 
     row.append(circle,input);
@@ -2183,14 +2170,30 @@
     input.value = item.text;
     input.autocomplete = "off";
 
+    let composing = false;
+
+    input.addEventListener("compositionstart",()=>{
+      composing = true;
+    });
+
+    input.addEventListener("compositionend",()=>{
+      composing = false;
+      item.text = input.value;
+      if(item.completedAt) renderHomeCompletedWants();
+      scheduleWantSave();
+    });
+
     input.addEventListener("input",()=>{
       item.text = input.value;
+      if(composing) return;
       if(item.completedAt) renderHomeCompletedWants();
       scheduleWantSave();
     });
 
     input.addEventListener("keydown",e=>{
       if(e.key==="Enter"){
+        // 日本語IMEの変換確定Enterは、次の行へ移動するEnterとは別扱い。
+        if(composing || e.isComposing || e.keyCode===229) return;
         e.preventDefault();
         item.text = input.value.trim();
         clearTimeout(wantEditTimer);
@@ -2204,7 +2207,7 @@
         return;
       }
 
-      if(e.key==="Backspace" && !input.value && !item.completedAt){
+      if(e.key==="Backspace" && !input.value && !item.completedAt && !composing && !e.isComposing){
         e.preventDefault();
         const visible = wantsSorted(false);
         const index = visible.findIndex(x=>x.id===item.id);
@@ -5124,7 +5127,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.62").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.63").catch(console.error);
       });
     }
   }
