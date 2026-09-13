@@ -81,6 +81,11 @@
     }
     .date-main{
       text-align:center;
+      display:flex;
+      justify-content:center;
+      align-items:baseline;
+      gap:4px;
+      white-space:nowrap;
     }
     .date-main .date{
       display:inline-block;
@@ -98,7 +103,8 @@
     .date-main .weekday{
       color:var(--muted);
       font-size:13px;
-      margin-bottom:4px;
+      line-height:1;
+      margin:0;
       transition:color .18s ease;
     }
     .date-main .weekday.is-saturday{
@@ -306,33 +312,53 @@
       margin-top:7px;
     }
     .want-home-completed{
-      width:min(78%, 430px);
-      margin:1px auto 9px;
-      display:grid;
-      gap:2px;
+      width:calc(100% - 112px);
+      max-width:430px;
+      margin:0 auto 9px;
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:center;
+      align-items:center;
+      gap:1px 5px;
       color:#777067;
       font-size:13px;
       line-height:1.35;
-      text-align:left;
+      text-align:center;
     }
     .want-home-completed[hidden]{display:none}
     .want-home-completed-row{
-      display:grid;
-      grid-template-columns:13px minmax(0,1fr);
-      gap:6px;
-      align-items:baseline;
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      min-width:0;
+      max-width:100%;
     }
-    .want-home-completed-dot{
-      width:7px;
-      height:7px;
-      border-radius:50%;
-      background:#b77b63;
-      justify-self:center;
-      align-self:center;
+    .want-home-completed-check{
+      position:relative;
+      flex:0 0 13px;
+      width:13px;
+      height:13px;
+      border:1.5px solid #8f8980;
+      border-radius:2px;
+    }
+    .want-home-completed-check::after{
+      content:"";
+      position:absolute;
+      left:3px;
+      top:0px;
+      width:4px;
+      height:8px;
+      border-right:1.6px solid #8f8980;
+      border-bottom:1.6px solid #8f8980;
+      transform:rotate(42deg);
     }
     .want-home-completed-text{
       min-width:0;
       overflow-wrap:anywhere;
+    }
+    .want-home-completed-sep{
+      margin-left:1px;
+      color:#aaa39a;
     }
     .want-screen-head{
       margin:4px 2px 12px;
@@ -1139,8 +1165,8 @@
     <div class="date-row">
       <button id="prevDayBtn" class="round-btn" aria-label="前の日">‹</button>
       <div class="date-main">
-        <div id="homeWeekday" class="weekday"></div>
         <div id="homeDate" class="date"></div>
+        <div id="homeWeekday" class="weekday"></div>
       </div>
       <button id="nextDayBtn" class="round-btn" aria-label="次の日">›</button>
     </div>
@@ -1283,7 +1309,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.64</div>
+    <div class="version">Stamp Card v1.9.65</div>
   </div>
 </div>
 
@@ -2051,21 +2077,27 @@
       return;
     }
 
-    for(const item of items){
-      const row = document.createElement("div");
+    items.forEach((item, index)=>{
+      const row = document.createElement("span");
       row.className = "want-home-completed-row";
 
-      const dot = document.createElement("span");
-      dot.className = "want-home-completed-dot";
-      dot.setAttribute("aria-hidden", "true");
+      const check = document.createElement("span");
+      check.className = "want-home-completed-check";
+      check.setAttribute("aria-hidden", "true");
 
       const text = document.createElement("span");
       text.className = "want-home-completed-text";
       text.textContent = item.text;
 
-      row.append(dot, text);
+      row.append(check, text);
+      if(index < items.length - 1){
+        const sep = document.createElement("span");
+        sep.className = "want-home-completed-sep";
+        sep.textContent = "/";
+        row.appendChild(sep);
+      }
       root.appendChild(row);
-    }
+    });
     root.hidden = false;
   }
 
