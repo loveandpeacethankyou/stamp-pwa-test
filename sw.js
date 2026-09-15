@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-67-diary-wish-layout";
+const CACHE = "stamp-card-v1-9-68-diary-wish-left";
 const CORE = [
   "./",
   "./index.html",
