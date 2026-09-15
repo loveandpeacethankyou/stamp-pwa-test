@@ -83,9 +83,13 @@
       text-align:center;
       display:flex;
       justify-content:center;
-      align-items:baseline;
-      gap:4px;
+      align-items:center;
       white-space:nowrap;
+      min-width:0;
+    }
+    .date-anchor{
+      position:relative;
+      display:inline-block;
     }
     .date-main .date{
       display:inline-block;
@@ -101,10 +105,12 @@
       color:var(--ink);
     }
     .date-main .weekday{
+      position:absolute;
+      left:calc(100% + 2px);
+      bottom:5px;
       color:var(--muted);
       font-size:13px;
       line-height:1;
-      margin:0;
       transition:color .18s ease;
     }
     .date-main .weekday.is-saturday{
@@ -312,34 +318,28 @@
       margin-top:7px;
     }
     .want-home-completed{
-      width:calc(100% - 112px);
-      max-width:430px;
-      margin:0 auto 9px;
-      display:flex;
-      flex-wrap:wrap;
-      justify-content:center;
-      align-items:center;
-      gap:1px 5px;
+      width:100%;
+      margin:0;
+      padding:10px 13px 0;
       color:#777067;
       font-size:13px;
       line-height:1.35;
       text-align:center;
+      overflow-wrap:anywhere;
     }
     .want-home-completed[hidden]{display:none}
-    .want-home-completed-row{
-      display:inline-flex;
-      align-items:center;
-      gap:5px;
-      min-width:0;
-      max-width:100%;
+    .want-home-completed-line{
+      display:inline;
     }
     .want-home-completed-check{
       position:relative;
-      flex:0 0 13px;
+      display:inline-block;
       width:13px;
       height:13px;
+      margin-right:5px;
       border:1.5px solid #8f8980;
       border-radius:2px;
+      vertical-align:-2px;
     }
     .want-home-completed-check::after{
       content:"";
@@ -353,11 +353,10 @@
       transform:rotate(42deg);
     }
     .want-home-completed-text{
-      min-width:0;
-      overflow-wrap:anywhere;
+      display:inline;
     }
     .want-home-completed-sep{
-      margin-left:1px;
+      display:inline;
       color:#aaa39a;
     }
     .want-screen-head{
@@ -482,6 +481,22 @@
       overflow-y:hidden;
       outline:none;
       font-size:15px;
+    }
+    .diary-entry-box{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(255,255,255,.6);
+      overflow:hidden;
+    }
+    .diary-entry-box #diaryInput{
+      border:0;
+      border-radius:0;
+      background:transparent;
+      margin:0;
+    }
+    .diary-entry-box #diaryInput:focus{
+      border-color:transparent;
     }
     .diary-images{
       display:flex;
@@ -1165,14 +1180,15 @@
     <div class="date-row">
       <button id="prevDayBtn" class="round-btn" aria-label="前の日">‹</button>
       <div class="date-main">
-        <div id="homeDate" class="date"></div>
-        <div id="homeWeekday" class="weekday"></div>
+        <div class="date-anchor">
+          <span id="homeDate" class="date"></span>
+          <span id="homeWeekday" class="weekday"></span>
+        </div>
       </div>
       <button id="nextDayBtn" class="round-btn" aria-label="次の日">›</button>
     </div>
     <button id="todayBtn" class="today-btn">今日に戻る</button>
     <div id="googleEvents" class="google-events" aria-live="polite"></div>
-    <div id="wantHomeCompleted" class="want-home-completed" hidden></div>
 
     <div id="reorderBanner" class="reorder-banner">
       <span>スタンプをドラッグして並べ替え</span>
@@ -1194,7 +1210,10 @@
 
       <div class="memo">
         <label for="diaryInput">日記</label>
-        <textarea id="diaryInput" placeholder=""></textarea>
+        <div class="diary-entry-box">
+          <div id="wantHomeCompleted" class="want-home-completed" hidden></div>
+          <textarea id="diaryInput" placeholder=""></textarea>
+        </div>
         <input id="diaryImageInput" type="file" accept="image/*" multiple hidden>
         <div id="diaryImages" class="diary-images"></div>
       </div>
@@ -1309,7 +1328,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.65</div>
+    <div class="version">Stamp Card v1.9.67</div>
   </div>
 </div>
 
@@ -2077,27 +2096,29 @@
       return;
     }
 
-    items.forEach((item, index)=>{
-      const row = document.createElement("span");
-      row.className = "want-home-completed-row";
+    const line = document.createElement("span");
+    line.className = "want-home-completed-line";
 
-      const check = document.createElement("span");
-      check.className = "want-home-completed-check";
-      check.setAttribute("aria-hidden", "true");
+    const check = document.createElement("span");
+    check.className = "want-home-completed-check";
+    check.setAttribute("aria-hidden", "true");
+    line.appendChild(check);
+
+    items.forEach((item, index)=>{
+      if(index > 0){
+        const sep = document.createElement("span");
+        sep.className = "want-home-completed-sep";
+        sep.textContent = " / ";
+        line.appendChild(sep);
+      }
 
       const text = document.createElement("span");
       text.className = "want-home-completed-text";
       text.textContent = item.text;
-
-      row.append(check, text);
-      if(index < items.length - 1){
-        const sep = document.createElement("span");
-        sep.className = "want-home-completed-sep";
-        sep.textContent = "/";
-        row.appendChild(sep);
-      }
-      root.appendChild(row);
+      line.appendChild(text);
     });
+
+    root.appendChild(line);
     root.hidden = false;
   }
 
@@ -2335,7 +2356,7 @@
     const isToday = selectedDate===todayStr();
     const isHoliday = isJapaneseHoliday(selectedDate);
     const weekdayEl = $("homeWeekday");
-    const dateMainEl = $("homeDate").parentElement;
+    const dateMainEl = $("homeDate").closest(".date-main");
 
     $("homeDate").textContent = f.date;
     weekdayEl.textContent = f.weekday;
@@ -5186,7 +5207,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.63").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.67").catch(console.error);
       });
     }
   }
