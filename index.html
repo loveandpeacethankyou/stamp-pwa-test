@@ -646,7 +646,7 @@
       font-size:12px;
       line-height:1.2;
     }
-    .library-icon svg{
+    .library-icon svg,.top-calendar-icon svg{
       width:19px;
       height:19px;
       display:block;
@@ -790,7 +790,7 @@
       background:rgba(244,240,232,.94);
       backdrop-filter:blur(16px);
       display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
+      grid-template-columns:repeat(3,minmax(0,1fr));
       gap:8px;
       border-top:1px solid rgba(90,75,50,.08);
     }
@@ -1231,7 +1231,13 @@
 <div class="app">
   <section id="homeScreen" class="screen active">
     <div class="topbar">
-      <div></div>
+      <button id="homeCalendarBtn" class="icon-btn top-calendar-icon" type="button" aria-label="カレンダー">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3.5" y="5.5" width="17" height="15" rx="2.5"></rect>
+          <path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path>
+          <path d="M8 14h2M12 14h2M16 14h1M8 17h2M12 17h2"></path>
+        </svg>
+      </button>
       <h1>STAMP CARD</h1>
       <button id="settingsBtn" class="icon-btn" aria-label="設定">⚙︎</button>
     </div>
@@ -1348,7 +1354,6 @@
 
 <nav class="bottom-nav">
   <button id="homeNav" class="nav-btn active">今日</button>
-  <button id="calendarNav" class="nav-btn">カレンダー</button>
   <button id="wantsNav" class="nav-btn">やりたいこと</button>
   <button id="archiveNav" class="nav-btn">アーカイブ</button>
 </nav>
@@ -1482,7 +1487,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.72 ARCHIVE spacing</div>
+    <div class="version">Stamp Card v1.9.73 calendar top icon</div>
   </div>
 </div>
 
@@ -3752,7 +3757,6 @@
     $("wantsScreen").classList.toggle("active",wants);
     $("archiveScreen").classList.toggle("active",archive);
     $("homeNav").classList.toggle("active",home);
-    $("calendarNav").classList.toggle("active",calendar);
     $("wantsNav").classList.toggle("active",wants);
     $("archiveNav").classList.toggle("active",archive);
 
@@ -4429,7 +4433,7 @@
   };
 
   $("homeNav").onclick = ()=>showScreen("home");
-  $("calendarNav").onclick = ()=>showScreen("calendar");
+  $("homeCalendarBtn").onclick = ()=>showScreen("calendar");
   $("wantsNav").onclick = ()=>showScreen("wants");
   $("archiveNav").onclick = ()=>showScreen("archive");
   $("archiveAddBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); openArchiveLocalItemForm(); };
