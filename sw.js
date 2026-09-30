@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-69-archive-local";
+const CACHE = "stamp-card-v1-9-70-archive-sync";
 const CORE = [
   "./",
   "./index.html",

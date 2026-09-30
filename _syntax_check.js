@@ -1,1616 +1,4 @@
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f4f0e8">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Stamp Card">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="apple-touch-icon" href="./icon-180.png">
-  <title>Stamp Card</title>
-  <style>
-    :root{
-      --bg:#f4f0e8;
-      --paper:#fffdf8;
-      --ink:#292724;
-      --muted:#8c877f;
-      --line:#ddd6cb;
-      --soft:#ece6dc;
-      --danger:#9f3d3d;
-      --shadow:0 10px 30px rgba(55,45,30,.08);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      color:var(--ink);
-      background:var(--bg);
-    }
-    *{box-sizing:border-box}
-    html,body{
-      width:100%;
-      max-width:100%;
-      overflow-x:hidden;
-      overscroll-behavior-x:none;
-    }
-    body{
-      margin:0;
-      min-height:100vh;
-      background:var(--bg);
-      -webkit-tap-highlight-color:transparent;
-      padding-bottom:calc(78px + env(safe-area-inset-bottom));
-    }
-    button,input,textarea,select{font:inherit}
-    button{cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-    .app{
-      width:min(100%,560px);
-      margin:0 auto;
-      min-height:100vh;
-      padding:calc(12px + env(safe-area-inset-top)) 16px 24px;
-    }
-    .topbar{
-      display:grid;
-      grid-template-columns:44px 1fr 44px;
-      align-items:center;
-      min-height:48px;
-      margin-bottom:8px;
-    }
-    .topbar h1{
-      text-align:center;
-      font-size:17px;
-      margin:0;
-      font-weight:750;
-      letter-spacing:.02em;
-    }
-    .icon-btn{
-      border:0;
-      width:40px;
-      height:40px;
-      border-radius:50%;
-      background:transparent;
-      color:var(--ink);
-      font-size:22px;
-      display:grid;
-      place-items:center;
-    }
-    .icon-btn:active{background:var(--soft)}
-    .date-row{
-      display:grid;
-      grid-template-columns:48px 1fr 48px;
-      align-items:center;
-      gap:8px;
-      margin:4px 0 8px;
-    }
-    .date-main{
-      text-align:center;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      white-space:nowrap;
-      min-width:0;
-    }
-    .date-anchor{
-      position:relative;
-      display:inline-block;
-    }
-    .date-main .date{
-      display:inline-block;
-      font-size:31px;
-      line-height:1.1;
-      font-weight:800;
-      letter-spacing:.01em;
-      padding:4px 0 2px;
-      color:#9e9589;
-      transition:color .18s ease;
-    }
-    .date-main.is-today .date{
-      color:var(--ink);
-    }
-    .date-main .weekday{
-      position:absolute;
-      left:calc(100% + 2px);
-      bottom:5px;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1;
-      transition:color .18s ease;
-    }
-    .date-main .weekday.is-saturday{
-      color:#748ca7;
-    }
-    .date-main .weekday.is-sunday-holiday{
-      color:#b77a7a;
-    }
-    .round-btn{
-      width:46px;
-      height:46px;
-      border-radius:50%;
-      border:1px solid var(--line);
-      background:var(--paper);
-      font-size:24px;
-      box-shadow:0 3px 12px rgba(55,45,30,.05);
-    }
-    .today-btn{
-      display:block;
-      margin:0 auto 8px;
-      padding:5px 10px;
-      border:0;
-      background:transparent;
-      color:var(--muted);
-      font-size:13px;
-    }
-    .reorder-banner{
-      display:none !important;
-    }
-    .card{
-      background:var(--paper);
-      border:1px solid rgba(90,75,50,.08);
-      border-radius:24px;
-      box-shadow:var(--shadow);
-      padding:18px;
-    }
-    .stamp-area{
-      position:relative;
-      margin:-18px -18px 0;
-      padding:18px 18px 11px;
-      border-radius:24px 24px 0 0;
-      overflow:hidden;
-      isolation:isolate;
-    }
-    .stamp-area-bg{
-      position:absolute;
-      inset:0;
-      overflow:hidden;
-      pointer-events:none;
-      z-index:0;
-      background:var(--paper);
-    }
-    .stamp-area-bg img{
-      position:absolute;
-      top:50%;
-      left:50%;
-      height:100%;
-      width:auto;
-      max-width:none;
-      transform:translate(-50%,-50%);
-      opacity:0;
-      display:block;
-      transition:opacity 2.4s cubic-bezier(.45,0,.55,1);
-      will-change:opacity;
-    }
-    .stamp-grid{
-      position:relative;
-      z-index:1;
-      touch-action:manipulation;
-      -webkit-user-select:none;
-      user-select:none;
-      display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:18px 10px;
-      justify-items:center;
-      min-height:0;
-      align-items:start;
-    }
-    .stamp-wrap{
-      touch-action:manipulation;
-      -webkit-user-select:none;
-      user-select:none;
-      width:100%;
-      text-align:center;
-      user-select:none;
-    }
-    .stamp{
-      touch-action:manipulation;
-      -webkit-user-select:none;
-      user-select:none;
-      width:min(25vw,104px);
-      max-width:104px;
-      aspect-ratio:1;
-      border-radius:50%;
-      border:2px dashed #c9c1b7;
-      background:#faf7f1;
-      color:#aaa298;
-      display:grid;
-      place-items:center;
-      padding:9px;
-      margin:0 auto;
-      overflow:hidden;
-      position:relative;
-      transition:filter .08s ease, opacity .08s ease, transform .05s ease;
-    }
-    .stamp:active{transform:scale(.98)}
-    .stamp.off{
-      font-weight:750;
-      color:#9e9589;
-    }
-    .stamp.on{
-      border-style:solid;
-      border-color:transparent;
-      font-weight:900;
-      color:#fff;
-    }
-    .stamp-label{
-      position:relative;
-      z-index:2;
-      display:block;
-      width:100%;
-      text-align:center;
-      font-size:15px;
-      line-height:1.22;
-      font-weight:800;
-      word-break:break-word;
-      text-wrap:balance;
-      padding:0 4px;
-    }
-    .stamp.on .stamp-label{
-      font-size:16px;
-      font-weight:900;
-    }
-    .stamp.on img{
-      width:100%;
-      height:100%;
-      position:absolute;
-      inset:0;
-      object-fit:cover;
-      border-radius:50%;
-    }
-    .stamp.on.has-image{
-      background:#faf7f1;
-      color:#fff;
-      border-color:rgba(255,255,255,.78);
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
-    }
-    .stamp.on.has-image img{
-      opacity:.92;
-      mix-blend-mode:normal;
-      filter:saturate(1.02) brightness(.98) contrast(1.03);
-    }
-    .stamp.on.has-image .stamp-label{
-      position:relative;
-      z-index:3;
-      left:auto;
-      bottom:auto;
-      transform:none;
-      width:100%;
-      max-width:none;
-      padding:0 4px;
-      font-size:15px;
-      line-height:1.22;
-      font-weight:800;
-      color:rgba(255,255,255,.54);
-      background:transparent;
-      border-radius:0;
-      white-space:normal;
-      overflow:visible;
-      text-overflow:clip;
-      text-shadow:none;
-      box-shadow:none;
-      word-break:break-word;
-      text-wrap:balance;
-      mix-blend-mode:normal;
-    }
-    .stamp.on.has-image .stamp-label::before{
-      content:none;
-    }
-    .stamp.on.has-image.bright-image-label .stamp-label{
-      color:rgba(158,149,137,.58);
-      mix-blend-mode:normal;
-      -webkit-text-stroke:.8px rgba(255,255,255,.52);
-      paint-order:stroke fill;
-      text-shadow:
-        1px 0 0 rgba(255,255,255,.36),
-        -1px 0 0 rgba(255,255,255,.36),
-        0 1px 0 rgba(255,255,255,.36),
-        0 -1px 0 rgba(255,255,255,.36),
-        0 0 3px rgba(255,255,255,.52),
-        0 0 6px rgba(255,255,255,.26);
-    }
-    .empty{
-      grid-column:1/-1;
-      align-self:center;
-      text-align:center;
-      color:var(--muted);
-      font-size:14px;
-      padding:30px 10px;
-    }
-    .memo{
-      margin-top:18px;
-    }
-    .stamp-area + .memo{
-      margin-top:7px;
-    }
-    .want-home-completed{
-      width:100%;
-      margin:0;
-      padding:10px 13px 0;
-      color:#777067;
-      font-size:13px;
-      line-height:1.35;
-      text-align:left;
-      overflow-wrap:anywhere;
-    }
-    .want-home-completed[hidden]{display:none}
-    .want-home-completed-line{
-      display:inline;
-    }
-    .want-home-completed-check{
-      position:relative;
-      display:inline-block;
-      width:13px;
-      height:13px;
-      margin-right:5px;
-      border:1.5px solid #8f8980;
-      border-radius:2px;
-      vertical-align:-2px;
-    }
-    .want-home-completed-check::after{
-      content:"";
-      position:absolute;
-      left:3px;
-      top:0px;
-      width:4px;
-      height:8px;
-      border-right:1.6px solid #8f8980;
-      border-bottom:1.6px solid #8f8980;
-      transform:rotate(42deg);
-    }
-    .want-home-completed-text{
-      display:inline;
-    }
-    .want-home-completed-sep{
-      display:inline;
-      color:#aaa39a;
-    }
-    .want-screen-head{
-      margin:4px 2px 12px;
-    }
-    .want-screen-head h2{
-      margin:0;
-      font-size:27px;
-      line-height:1.15;
-      letter-spacing:.01em;
-    }
-    .want-card{
-      background:var(--paper);
-      border:1px solid rgba(90,75,50,.08);
-      border-radius:24px;
-      box-shadow:var(--shadow);
-      padding:14px 14px 16px;
-    }
-    .want-tabs{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:4px;
-      padding:4px;
-      margin-bottom:8px;
-      border-radius:14px;
-      background:var(--soft);
-    }
-    .want-tab{
-      border:0;
-      border-radius:11px;
-      padding:8px 10px;
-      background:transparent;
-      color:var(--muted);
-      font-size:13px;
-      font-weight:750;
-    }
-    .want-tab.active{
-      background:var(--paper);
-      color:var(--ink);
-      box-shadow:0 2px 8px rgba(55,45,30,.06);
-    }
-    .want-list{
-      display:grid;
-    }
-    .want-row{
-      min-height:46px;
-      display:grid;
-      grid-template-columns:30px minmax(0,1fr);
-      align-items:center;
-      border-bottom:1px solid rgba(90,75,50,.09);
-    }
-    .want-row:last-child{border-bottom:0}
-    .want-circle{
-      width:23px;
-      height:23px;
-      border-radius:50%;
-      border:1.7px solid #bdb6ac;
-      background:transparent;
-      padding:0;
-      margin:0 auto;
-      position:relative;
-      flex:0 0 auto;
-    }
-    .want-circle.completed{
-      border-color:#b77b63;
-      background:rgba(183,123,99,.10);
-    }
-    .want-circle.completed::after{
-      content:"";
-      position:absolute;
-      width:10px;
-      height:10px;
-      left:50%;
-      top:50%;
-      transform:translate(-50%,-50%);
-      border-radius:50%;
-      background:#b77b63;
-    }
-    .want-circle.blank{
-      opacity:.62;
-      pointer-events:none;
-    }
-    .want-input{
-      width:100%;
-      min-width:0;
-      border:0;
-      outline:0;
-      background:transparent;
-      color:var(--ink);
-      font-size:16px;
-      line-height:1.35;
-      padding:11px 5px 10px 3px;
-    }
-    .want-input::placeholder{color:#b2aca4}
-    .want-row.completed .want-input{
-      color:#777067;
-    }
-    .want-empty{
-      padding:26px 8px 18px;
-      text-align:center;
-      color:var(--muted);
-      font-size:13px;
-    }
-    .memo + .memo{
-      margin-top:7px;
-    }
-    .memo label{
-      display:block;
-      font-size:13px;
-      color:var(--muted);
-      margin:0 0 7px 4px;
-    }
-    .memo textarea{
-      width:100%;
-      min-height:68px;
-      border:1px solid var(--line);
-      border-radius:16px;
-      background:rgba(255,255,255,.6);
-      color:var(--ink);
-      padding:12px 13px;
-      resize:none;
-      overflow-y:hidden;
-      outline:none;
-      font-size:15px;
-    }
-    .diary-entry-box{
-      width:100%;
-      border:1px solid var(--line);
-      border-radius:16px;
-      background:rgba(255,255,255,.6);
-      overflow:hidden;
-    }
-    .diary-entry-box #diaryInput{
-      border:0;
-      border-radius:0;
-      background:transparent;
-      margin:0;
-    }
-    .diary-entry-box #diaryInput:focus{
-      border-color:transparent;
-    }
-    .diary-images{
-      display:flex;
-      flex-wrap:wrap;
-      gap:9px;
-      margin-top:10px;
-    }
-    .diary-image-item{
-      width:72px;
-      height:72px;
-      border-radius:14px;
-      overflow:visible;
-      position:relative;
-      flex:0 0 auto;
-    }
-    .diary-image-thumb{
-      width:72px;
-      height:72px;
-      border:0;
-      padding:0;
-      border-radius:14px;
-      overflow:hidden;
-      background:#eee8df;
-      display:block;
-    }
-    .diary-image-thumb img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-      pointer-events:none;
-    }
-    .diary-image-remove{
-      position:absolute;
-      right:-6px;
-      top:-6px;
-      width:24px;
-      height:24px;
-      border:0;
-      border-radius:50%;
-      background:var(--ink);
-      color:#fff;
-      display:grid;
-      place-items:center;
-      font-size:15px;
-      line-height:1;
-      padding:0;
-      box-shadow:0 2px 6px rgba(0,0,0,.18);
-    }
-    .diary-image-add{
-      width:72px;
-      height:72px;
-      border:2px dashed var(--line);
-      border-radius:14px;
-      background:#faf7f1;
-      color:#9e968c;
-      font-size:28px;
-      display:grid;
-      place-items:center;
-      padding:0;
-    }
-    .day{position:relative}
-    .day-top{
-      display:flex;
-      align-items:center;
-      gap:4px;
-      min-height:16px;
-      margin-bottom:5px;
-    }
-    .day-num{
-      margin:0 0 0 2px;
-    }
-    .day-photo-indicator{
-      width:12px;
-      height:12px;
-      display:block;
-      color:var(--muted);
-      opacity:.8;
-      flex:0 0 auto;
-    }
-    .photo-viewer-overlay{
-      z-index:90;
-      align-items:center;
-      padding:18px;
-    }
-    .photo-viewer{
-      width:min(100%,520px);
-      max-height:88vh;
-      border-radius:20px;
-      background:#151515;
-      overflow:hidden;
-      position:relative;
-      display:grid;
-      place-items:center;
-    }
-    .photo-viewer img{
-      max-width:100%;
-      max-height:88vh;
-      display:block;
-      object-fit:contain;
-    }
-    .photo-viewer-close{
-      position:absolute;
-      top:10px;
-      right:10px;
-      z-index:2;
-      width:36px;
-      height:36px;
-      border:0;
-      border-radius:50%;
-      background:rgba(0,0,0,.65);
-      color:#fff;
-      font-size:20px;
-      display:grid;
-      place-items:center;
-    }
-    .memo textarea:focus{border-color:#aaa096}
-    .calendar-head{
-      display:grid;
-      grid-template-columns:44px 1fr 44px;
-      align-items:center;
-      margin:4px 0 16px;
-    }
-    .calendar-head h2{
-      margin:0;
-      text-align:center;
-      font-size:22px;
-    }
-    .calendar-filter{
-      margin:0 0 12px;
-    }
-    .calendar-filter select{
-      width:100%;
-      height:36px;
-      border:1px solid var(--line);
-      border-radius:12px;
-      background:rgba(255,255,255,.62);
-      color:var(--ink);
-      padding:0 34px 0 12px;
-      font:inherit;
-      font-size:13px;
-    }
-    .calendar-month-count{
-      margin-top:6px;
-      text-align:right;
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.2;
-    }
-    .library-icon svg{
-      width:19px;
-      height:19px;
-      display:block;
-      margin:auto;
-      fill:none;
-      stroke:currentColor;
-      stroke-width:1.7;
-      stroke-linecap:round;
-      stroke-linejoin:round;
-    }
-    .library-sheet{
-      width:min(100%,560px);
-      max-height:94vh;
-      min-height:68vh;
-    }
-    .library-month-head{
-      display:grid;
-      grid-template-columns:44px 1fr 44px;
-      align-items:center;
-      margin:0 0 16px;
-    }
-    .library-month-head h3{
-      margin:0;
-      text-align:center;
-      font-size:20px;
-    }
-    .monthly-photo-grid{
-      display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:14px 9px;
-    }
-    .monthly-photo-item{
-      min-width:0;
-    }
-    .monthly-photo-thumb{
-      width:100%;
-      aspect-ratio:1;
-      display:block;
-      border:0;
-      padding:0;
-      border-radius:14px;
-      overflow:hidden;
-      background:#eee8df;
-    }
-    .monthly-photo-thumb img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .monthly-photo-date{
-      display:block;
-      width:100%;
-      margin-top:5px;
-      padding:0;
-      border:0;
-      background:transparent;
-      text-align:center;
-      color:var(--muted);
-      font:inherit;
-      font-size:11px;
-      line-height:1.2;
-      cursor:pointer;
-    }
-    .monthly-photo-empty{
-      padding:44px 10px;
-      text-align:center;
-      color:var(--muted);
-      font-size:13px;
-    }
-    .week-row,.calendar-grid{
-      display:grid;
-      grid-template-columns:repeat(7,1fr);
-      gap:4px;
-    }
-    .week-row{
-      margin-bottom:4px;
-      color:var(--muted);
-      font-size:11px;
-      text-align:center;
-    }
-    .day{
-      min-height:72px;
-      border:0;
-      border-radius:13px;
-      background:transparent;
-      padding:6px 4px 4px;
-      text-align:left;
-      color:var(--ink);
-      overflow:hidden;
-    }
-    .day:active{background:var(--soft)}
-    .day.out{opacity:.18}
-    .day.today{outline:1px solid #bdb4aa}
-    .day.selected{background:#ebe4da}
-    .day-num{
-      font-size:12px;
-    }
-    .mini-stamps{
-      display:grid;
-      grid-template-columns:repeat(2,15px);
-      gap:3px;
-      min-height:33px;
-      align-content:start;
-      justify-content:start;
-    }
-    .mini-stamp{
-      width:15px;
-      height:15px;
-      border-radius:50%;
-      background:#777;
-      display:grid;
-      place-items:center;
-      color:white;
-      font-size:8px;
-      font-weight:800;
-      overflow:hidden;
-      position:relative;
-    }
-    .mini-stamp img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .mini-more{
-      font-size:9px;
-      color:var(--muted);
-      align-self:center;
-      white-space:nowrap;
-      padding-left:1px;
-    }
-    .bottom-nav{
-      position:fixed;
-      z-index:20;
-      left:50%;
-      bottom:0;
-      transform:translateX(-50%);
-      width:min(100%,560px);
-      padding:8px 16px calc(8px + env(safe-area-inset-bottom));
-      background:rgba(244,240,232,.94);
-      backdrop-filter:blur(16px);
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:8px;
-      border-top:1px solid rgba(90,75,50,.08);
-    }
-    .nav-btn{
-      border:0;
-      border-radius:14px;
-      padding:9px 10px;
-      background:transparent;
-      color:var(--muted);
-      font-size:13px;
-      font-weight:700;
-    }
-    .nav-btn.active{
-      background:var(--paper);
-      color:var(--ink);
-      box-shadow:0 3px 12px rgba(55,45,30,.06);
-    }
-    .screen{display:none}
-    .screen.active{display:block}
-    .overlay{
-      position:fixed;
-      z-index:50;
-      inset:0;
-      background:rgba(32,28,24,.34);
-      display:none;
-      align-items:flex-end;
-      justify-content:center;
-    }
-    .overlay.open{display:flex}
-    .sheet{
-      width:min(100%,560px);
-      max-height:88vh;
-      overflow-y:auto;
-      overflow-x:hidden;
-      overscroll-behavior-x:none;
-      touch-action:pan-y;
-      background:var(--paper);
-      border-radius:24px 24px 0 0;
-      padding:18px 18px calc(22px + env(safe-area-inset-bottom));
-      box-shadow:0 -16px 40px rgba(0,0,0,.12);
-    }
-    .sheet-head{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:16px;
-    }
-    .sheet-head h2{
-      margin:0;
-      font-size:20px;
-    }
-    .close-btn{
-      border:0;
-      background:var(--soft);
-      width:36px;height:36px;border-radius:50%;
-      font-size:18px;
-    }
-    .primary,.secondary,.danger-btn{
-      border:0;
-      border-radius:14px;
-      padding:11px 14px;
-      font-weight:750;
-    }
-    .primary{background:var(--ink);color:#fff}
-    .secondary{background:var(--soft);color:var(--ink)}
-    .danger-btn{background:#f3e4e4;color:var(--danger)}
-    .full{width:100%}
-    .manage-list{display:grid;gap:10px}
-    .manage-item{
-      border:1px solid var(--line);
-      border-radius:16px;
-      padding:12px;
-      display:grid;
-      grid-template-columns:1fr auto;
-      gap:10px;
-      align-items:center;
-    }
-    .manage-title{font-weight:800}
-    .manage-meta{
-      color:var(--muted);
-      font-size:12px;
-      margin-top:3px;
-    }
-    .manage-actions{display:flex;gap:6px}
-    .small-btn{
-      border:0;border-radius:11px;padding:7px 9px;
-      background:var(--soft);color:var(--ink);font-size:12px;font-weight:700;
-    }
-    .small-btn.danger{color:var(--danger);background:#f3e4e4}
-    .field{margin:14px 0}
-    .field > label{
-      display:block;
-      margin-bottom:6px;
-      font-size:13px;
-      color:var(--muted);
-    }
-    .field input[type="text"],.field input[type="date"],.field select{
-      width:100%;
-      border:1px solid var(--line);
-      border-radius:12px;
-      background:#fff;
-      padding:11px 12px;
-      color:var(--ink);
-      outline:none;
-    }
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .chips{display:flex;gap:7px;flex-wrap:wrap}
-    .chip input{display:none}
-    .chip span{
-      display:grid;place-items:center;
-      min-width:38px;height:38px;
-      padding:0 8px;
-      border-radius:999px;
-      background:var(--soft);
-      color:var(--muted);
-      font-size:13px;
-      font-weight:700;
-      border:1px solid transparent;
-    }
-    .chip input:checked + span{
-      background:var(--ink);
-      color:#fff;
-    }
-    .toggle-row{
-      display:flex;align-items:center;justify-content:space-between;
-      gap:10px;border:1px solid var(--line);border-radius:14px;padding:11px 12px;
-    }
-    .toggle-row input{width:22px;height:22px}
-    .image-gallery{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      margin-top:10px;
-    }
-    .image-item{
-      width:82px;
-      flex:0 0 auto;
-      text-align:center;
-      position:relative;
-    }
-    .image-thumb{
-      width:76px;
-      height:76px;
-      border-radius:50%;
-      border:0;
-      padding:0;
-      margin:0 auto;
-      display:block;
-      overflow:hidden;
-      background:#faf7f1;
-      box-shadow:0 0 0 1px var(--line);
-      touch-action:manipulation;
-    }
-    .image-thumb img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      border-radius:50%;
-      display:block;
-      background:#faf7f1;
-      pointer-events:none;
-    }
-    .image-edit-label{
-      display:block;
-      margin-top:5px;
-      font-size:10px;
-      color:var(--muted);
-    }
-    .crop-editor-overlay{
-      z-index:70;
-      align-items:center;
-      padding:24px 18px;
-    }
-    .crop-editor{
-      width:min(100%,420px);
-      background:var(--paper);
-      border-radius:24px;
-      padding:20px;
-      box-shadow:0 20px 60px rgba(0,0,0,.22);
-      text-align:center;
-    }
-    .crop-editor h2{
-      margin:0 0 6px;
-      font-size:20px;
-    }
-    .crop-help{
-      color:var(--muted);
-      font-size:12px;
-      margin-bottom:16px;
-    }
-    .crop-preview{
-      width:min(72vw,260px);
-      aspect-ratio:1;
-      border-radius:50%;
-      overflow:hidden;
-      margin:0 auto 16px;
-      background:#eee7dd;
-      border:2px solid var(--line);
-      touch-action:none;
-      position:relative;
-    }
-    .crop-preview img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-      pointer-events:none;
-      user-select:none;
-      -webkit-user-drag:none;
-    }
-    .crop-zoom{
-      margin:0 auto 16px;
-      width:min(72vw,260px);
-      text-align:left;
-    }
-    .crop-zoom-head{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:6px;
-      font-size:12px;
-      color:var(--muted);
-    }
-    .crop-zoom input[type="range"]{
-      width:100%;
-    }
-    .crop-actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-    .image-remove{
-      position:absolute;
-      right:0;
-      top:-5px;
-      width:24px;
-      height:24px;
-      border:0;
-      border-radius:50%;
-      background:var(--ink);
-      color:#fff;
-      font-size:15px;
-      line-height:1;
-      display:grid;
-      place-items:center;
-      padding:0;
-      box-shadow:0 2px 6px rgba(0,0,0,.18);
-    }
-    .image-add{
-      width:82px;
-      flex:0 0 auto;
-      border:0;
-      background:transparent;
-      padding:0;
-      text-align:center;
-      color:var(--muted);
-    }
-    .image-add-circle{
-      width:76px;
-      height:76px;
-      margin:0 auto;
-      border-radius:50%;
-      border:2px dashed var(--line);
-      background:#faf7f1;
-      display:grid;
-      place-items:center;
-      font-size:32px;
-      line-height:1;
-      color:#9e968c;
-      font-weight:400;
-    }
-    .image-add-label{
-      display:block;
-      margin-top:5px;
-      font-size:10px;
-      color:var(--muted);
-    }
-    .help{font-size:12px;color:var(--muted);line-height:1.5}
-    .version{
-      color:var(--muted);
-      text-align:center;
-      font-size:11px;
-      margin-top:18px;
-    }
-    .backup-section{
-      margin-top:20px;
-      padding-top:16px;
-      border-top:1px solid var(--line);
-    }
-    .backup-title{
-      font-size:15px;
-      margin:0 0 10px;
-    }
-    .backup-buttons{
-      display:grid;
-      gap:8px;
-    }
-    .backup-note{
-      margin-top:8px;
-      color:var(--muted);
-      font-size:11px;
-      line-height:1.5;
-    }
-    .cloud-section{
-      margin-top:18px;
-      padding-top:16px;
-      border-top:1px solid var(--line);
-    }
-    .cloud-section input{
-      width:100%;
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:11px 12px;
-      background:rgba(255,255,255,.7);
-      color:var(--ink);
-      font:inherit;
-      margin-bottom:8px;
-    }
-    .cloud-row{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-      margin-top:8px;
-    }
-    .cloud-status{
-      margin-top:8px;
-      color:var(--muted);
-      font-size:11px;
-      line-height:1.5;
-      word-break:break-word;
-    }
-    .google-events{
-      display:none;
-      margin:0 auto 9px;
-      padding:0 8px;
-      max-width:92%;
-      text-align:center;
-      color:#746f68;
-      font-size:13px;
-      line-height:1.45;
-    }
-    .google-events.show{
-      display:block;
-    }
-    .google-event{
-      display:flex;
-      justify-content:center;
-      align-items:baseline;
-      gap:6px;
-      min-height:19px;
-    }
-    .google-event + .google-event{
-      margin-top:1px;
-    }
-    .google-event-time{
-      color:#9e9589;
-      font-size:11px;
-      font-variant-numeric:tabular-nums;
-      white-space:nowrap;
-    }
-    .google-event-title{
-      font-weight:650;
-      word-break:break-word;
-    }
-    .google-calendar-actions{
-      display:grid;
-      grid-template-columns:1fr auto;
-      gap:8px;
-      margin-top:8px;
-    }
-    .google-calendar-actions .secondary:last-child{
-      padding-left:13px;
-      padding-right:13px;
-    }
 
-
-    /* ARCHIVE — phase 1: local-only prototype data */
-    .archive-card{
-      background:var(--paper);
-      border:1px solid rgba(90,75,50,.08);
-      border-radius:24px;
-      box-shadow:var(--shadow);
-      padding:14px;
-      min-height:420px;
-    }
-    .archive-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
-    .archive-filter-wrap{position:relative;flex:1 1 auto;min-width:0}
-    .archive-filter{
-      width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--ink);
-      padding:10px 36px 10px 12px;outline:none;appearance:none;font-size:13px;
-    }
-    .archive-filter-arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:12px}
-    .archive-category-btn{border:0;border-radius:13px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:12px;font-weight:700;white-space:nowrap}
-    .archive-count{margin:-3px 2px 10px;min-height:16px;text-align:right;color:var(--muted);font-size:11px}
-    .archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:260px}
-    .archive-item{width:100%;min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:left}
-    .archive-cover{
-      width:100%;aspect-ratio:2/3;border-radius:11px;overflow:hidden;
-      background:linear-gradient(145deg,#eee8de,#e2dbd0);display:grid;place-items:center;
-      box-shadow:0 2px 8px rgba(55,45,30,.08),0 0 0 1px rgba(90,75,50,.07);
-      color:#aaa298;font-size:10px;letter-spacing:.05em;font-weight:700;
-    }
-    .archive-cover img{width:100%;height:100%;object-fit:cover;display:block}
-    .archive-item-title{margin-top:7px;min-height:31px;font-size:12px;line-height:1.3;font-weight:750;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
-    .archive-item-rating{margin-top:3px;min-height:15px;color:#a56f58;font-size:11px;letter-spacing:.05em;white-space:nowrap}
-    .archive-item-category{margin-top:2px;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .archive-empty{grid-column:1/-1;min-height:280px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.7;padding:30px 12px}
-    .archive-empty strong{display:block;margin-bottom:4px;color:#746f68;font-size:14px}
-    .archive-rating-picker{display:flex;gap:4px;align-items:center}
-    .archive-star-btn{width:42px;height:42px;border:0;background:transparent;color:#c9c1b7;padding:0;font-size:30px;line-height:1}
-    .archive-star-btn.on{color:#a56f58}
-    .archive-rating-clear{border:0;background:transparent;color:var(--muted);font-size:12px;padding:8px;margin-left:4px}
-    .archive-form-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
-    .archive-form-actions[hidden]{display:none!important}
-    .archive-form-actions.single{grid-template-columns:1fr}
-    .archive-manage-name{border:0;background:transparent;color:var(--ink);padding:5px 3px;width:100%;outline:none;font-weight:700}
-    .archive-category-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px}
-    .archive-category-add-row input{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:#fff;color:var(--ink);outline:none}
-    .archive-cover-editor{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;align-items:center}
-    .archive-cover-preview{width:104px;aspect-ratio:2/3;border-radius:11px;overflow:hidden;background:linear-gradient(145deg,#eee8de,#e2dbd0);display:grid;place-items:center;color:#aaa298;font-size:10px;letter-spacing:.05em;font-weight:700;box-shadow:0 0 0 1px var(--line)}
-    .archive-cover-preview img{width:100%;height:100%;object-fit:cover;display:none}
-    .archive-cover-preview.has-image img{display:block}
-    .archive-cover-preview.has-image span{display:none}
-    .archive-cover-actions{display:grid;gap:8px}
-    .archive-cover-actions .secondary,.archive-cover-actions .danger-btn{width:100%}
-    .archive-image-note{color:var(--muted);font-size:10px;line-height:1.45}
-    @media (max-width:390px){
-      .archive-grid{gap:16px 8px}
-      .archive-card{padding:12px}
-      .bottom-nav{gap:4px;padding-left:8px;padding-right:8px}
-      .nav-btn{padding-left:4px;padding-right:4px;font-size:12px}
-    }
-  </style>
-</head>
-<body>
-<div class="app">
-  <section id="homeScreen" class="screen active">
-    <div class="topbar">
-      <div></div>
-      <h1>STAMP CARD</h1>
-      <button id="settingsBtn" class="icon-btn" aria-label="設定">⚙︎</button>
-    </div>
-
-    <div class="date-row">
-      <button id="prevDayBtn" class="round-btn" aria-label="前の日">‹</button>
-      <div class="date-main">
-        <div class="date-anchor">
-          <span id="homeDate" class="date"></span>
-          <span id="homeWeekday" class="weekday"></span>
-        </div>
-      </div>
-      <button id="nextDayBtn" class="round-btn" aria-label="次の日">›</button>
-    </div>
-    <button id="todayBtn" class="today-btn">今日に戻る</button>
-    <div id="googleEvents" class="google-events" aria-live="polite"></div>
-
-    <div id="reorderBanner" class="reorder-banner">
-      <span>スタンプをドラッグして並べ替え</span>
-      <button id="reorderDoneBtn" type="button">完了</button>
-    </div>
-
-    <div class="card">
-      <div id="stampArea" class="stamp-area">
-        <div id="stampAreaBg" class="stamp-area-bg" hidden>
-          <img id="stampAreaBgImageA" alt="">
-          <img id="stampAreaBgImageB" alt="">
-        </div>
-        <div id="stampGrid" class="stamp-grid"></div>
-      </div>
-      <div class="memo">
-        <label for="memoInput">スタンプメモ</label>
-        <textarea id="memoInput" placeholder=""></textarea>
-      </div>
-
-      <div class="memo">
-        <label for="diaryInput">日記</label>
-        <div class="diary-entry-box">
-          <div id="wantHomeCompleted" class="want-home-completed" hidden></div>
-          <textarea id="diaryInput" placeholder=""></textarea>
-        </div>
-        <input id="diaryImageInput" type="file" accept="image/*" multiple hidden>
-        <div id="diaryImages" class="diary-images"></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="calendarScreen" class="screen">
-    <div class="topbar">
-      <button id="calendarLibraryBtn" class="icon-btn library-icon" aria-label="画像ライブラリ">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="6" y="6" width="14" height="14" rx="2"></rect>
-          <path d="M9 15l2.7-2.7 2.1 2.1 1.6-1.6L18 15.5"></path>
-          <circle cx="15.8" cy="10.2" r="1.2"></circle>
-          <path d="M4 16V6a2 2 0 0 1 2-2h10"></path>
-        </svg>
-      </button>
-      <h1>CALENDAR</h1>
-      <button id="calendarSettingsBtn" class="icon-btn" aria-label="設定">⚙︎</button>
-    </div>
-    <div class="card">
-      <div class="calendar-head">
-        <button id="prevMonthBtn" class="icon-btn" aria-label="前の月">‹</button>
-        <h2 id="calendarTitle"></h2>
-        <button id="nextMonthBtn" class="icon-btn" aria-label="次の月">›</button>
-      </div>
-      <div class="calendar-filter">
-        <select id="calendarStampFilter" aria-label="スタンプで絞り込み">
-          <option value="all">すべてのスタンプ</option>
-        </select>
-        <div id="calendarMonthCount" class="calendar-month-count"></div>
-      </div>
-      <div class="week-row">
-        <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
-      </div>
-      <div id="calendarGrid" class="calendar-grid"></div>
-    </div>
-  </section>
-
-  <section id="wantsScreen" class="screen">
-    <div class="topbar">
-      <div></div>
-      <h1>WISH LIST</h1>
-      <button id="wantsSettingsBtn" class="icon-btn" aria-label="設定">⚙︎</button>
-    </div>
-    <div class="want-card">
-      <div class="want-tabs" role="tablist" aria-label="やりたいこと表示切替">
-        <button id="wantOpenTab" class="want-tab active" type="button" role="tab" aria-selected="true">未完了</button>
-        <button id="wantDoneTab" class="want-tab" type="button" role="tab" aria-selected="false">完了済み</button>
-      </div>
-      <div id="wantList" class="want-list"></div>
-    </div>
-  </section>
-
-  <section id="archiveScreen" class="screen">
-    <div class="topbar">
-      <button id="archiveAddBtn" class="icon-btn" type="button" aria-label="作品を追加">＋</button>
-      <h1>ARCHIVE</h1>
-      <button id="archiveSettingsBtn" class="icon-btn" type="button" aria-label="カテゴリー管理">⚙︎</button>
-    </div>
-    <div class="archive-card">
-      <div class="archive-toolbar">
-        <div class="archive-filter-wrap">
-          <select id="archiveCategoryFilter" class="archive-filter" aria-label="カテゴリーで絞り込み"></select>
-          <span class="archive-filter-arrow">▼</span>
-        </div>
-        <button id="archiveCategoryManageBtn" class="archive-category-btn" type="button">カテゴリー</button>
-      </div>
-      <div id="archiveCount" class="archive-count"></div>
-      <div id="archiveGrid" class="archive-grid"></div>
-    </div>
-  </section>
-</div>
-
-<nav class="bottom-nav">
-  <button id="homeNav" class="nav-btn active">今日</button>
-  <button id="calendarNav" class="nav-btn">カレンダー</button>
-  <button id="wantsNav" class="nav-btn">やりたいこと</button>
-  <button id="archiveNav" class="nav-btn">アーカイブ</button>
-</nav>
-
-
-
-<div id="archiveItemOverlay" class="overlay">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2 id="archiveItemFormTitle">作品を追加</h2>
-      <button class="close-btn" type="button" data-close="archiveItemOverlay">×</button>
-    </div>
-    <form id="archiveItemForm">
-      <input id="archiveItemId" type="hidden">
-      <div class="field">
-        <label for="archiveItemTitle">タイトル</label>
-        <input id="archiveItemTitle" type="text" maxlength="120" placeholder="作品名を入力" required>
-      </div>
-      <div class="field">
-        <label>画像（任意）</label>
-        <input id="archiveItemImageInput" type="file" accept="image/*" hidden>
-        <div class="archive-cover-editor">
-          <div id="archiveItemImagePreview" class="archive-cover-preview">
-            <img id="archiveItemImagePreviewImg" alt=""><span>NO IMAGE</span>
-          </div>
-          <div class="archive-cover-actions">
-            <button id="archiveChooseImageBtn" class="secondary" type="button">画像を選ぶ</button>
-            <button id="archiveRemoveImageBtn" class="danger-btn" type="button" hidden>画像を外す</button>
-            <div class="archive-image-note">大きい画像は自動で縮小します。</div>
-          </div>
-        </div>
-      </div>
-      <div class="field">
-        <label for="archiveItemCategory">カテゴリー</label>
-        <select id="archiveItemCategory"></select>
-      </div>
-      <div class="field">
-        <label for="archiveItemCompletedDate">完了日（任意）</label>
-        <input id="archiveItemCompletedDate" type="date">
-      </div>
-      <div class="field">
-        <label>評価</label>
-        <div class="archive-rating-picker">
-          <button class="archive-star-btn" type="button" data-archive-rating="1" aria-label="星1">★</button>
-          <button class="archive-star-btn" type="button" data-archive-rating="2" aria-label="星2">★</button>
-          <button class="archive-star-btn" type="button" data-archive-rating="3" aria-label="星3">★</button>
-          <button id="archiveRatingClear" class="archive-rating-clear" type="button">未評価</button>
-        </div>
-      </div>
-      <div class="field">
-        <label for="archiveItemComment">コメント（任意）</label>
-        <textarea id="archiveItemComment" style="min-height:110px;resize:vertical;line-height:1.6"></textarea>
-      </div>
-      <div id="archiveNewItemActions" class="archive-form-actions single">
-        <button class="primary full" type="submit">保存</button>
-      </div>
-      <div id="archiveEditItemActions" class="archive-form-actions" hidden>
-        <button class="danger-btn full" id="archiveDeleteItemBtn" type="button">削除</button>
-        <button class="primary full" type="submit">保存</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<div id="archiveCategoryOverlay" class="overlay">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2>カテゴリー</h2>
-      <button class="close-btn" type="button" data-close="archiveCategoryOverlay">×</button>
-    </div>
-    <div id="archiveCategoryList" class="manage-list"></div>
-    <div class="archive-category-add-row">
-      <input id="archiveNewCategoryName" type="text" maxlength="30" placeholder="カテゴリー名">
-      <button class="secondary" id="archiveAddCategoryBtn" type="button">追加</button>
-    </div>
-    <div class="help">名前変更・並べ替え・削除ができます。カテゴリーを削除しても作品自体は削除されず、「カテゴリーなし」に移動します。</div>
-  </div>
-</div>
-
-<div id="settingsOverlay" class="overlay">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2>設定</h2>
-      <button class="close-btn" data-close="settingsOverlay">×</button>
-    </div>
-    <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
-    <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
-    <div id="manageList" class="manage-list"></div>
-
-    <div class="backup-section">
-      <h3 class="backup-title">バックアップ</h3>
-      <div class="backup-buttons">
-        <button id="exportBackupBtn" type="button" class="secondary full">バックアップを書き出す</button>
-        <button id="importBackupBtn" type="button" class="secondary full">バックアップを読み込む</button>
-      </div>
-      <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
-      <div class="backup-note">スタンプ・達成記録・メモ・日記・画像・やりたいこと・アーカイブをまとめて保存します。</div>
-    </div>
-
-    <div class="cloud-section">
-      <h3 class="backup-title">iPhone・Windows共有</h3>
-      <div class="backup-note" style="margin:0 0 10px">ログイン中は、起動時と変更後に自動同期します。競合を検出した場合は自動上書きしません。</div>
-      <input id="cloudEmail" type="email" autocomplete="username" placeholder="メールアドレス">
-      <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="パスワード">
-      <button id="cloudLoginBtn" type="button" class="secondary full">ログイン</button>
-      <div class="cloud-row">
-        <button id="cloudUploadBtn" type="button" class="secondary full" disabled>この端末 → クラウド</button>
-        <button id="cloudDownloadBtn" type="button" class="secondary full" disabled>クラウド → この端末</button>
-      </div>
-
-      <div class="backup-section" style="margin-top:14px;padding-top:14px">
-        <h3 class="backup-title">画像Storage移行</h3>
-        <button id="migrateImagesBtn" type="button" class="secondary full" disabled>既存画像をStorageへコピー</button>
-        <div id="imageMigrationStatus" class="backup-note">
-          元画像は端末内に残したままコピーします。
-        </div>
-      </div>
-
-      <div id="cloudStatus" class="cloud-status">未ログイン</div>
-    </div>
-
-    <div class="cloud-section">
-      <h3 class="backup-title">Googleカレンダー</h3>
-      <div class="backup-note" style="margin:0 0 10px">Apps ScriptのウェブアプリURLと秘密キーを、この端末だけに保存します。</div>
-      <input id="googleCalendarUrl" type="url" inputmode="url" autocomplete="off" placeholder="ウェブアプリURL（…/exec）">
-      <input id="googleCalendarKey" type="password" autocomplete="off" placeholder="秘密キー">
-      <div class="google-calendar-actions">
-        <button id="googleCalendarSaveBtn" type="button" class="secondary full">保存・接続確認</button>
-        <button id="googleCalendarClearBtn" type="button" class="secondary">解除</button>
-      </div>
-      <div id="googleCalendarStatus" class="cloud-status">未設定</div>
-    </div>
-
-    <div class="version">Stamp Card v1.9.70 ARCHIVE sync</div>
-  </div>
-</div>
-
-<div id="questOverlay" class="overlay">
-  <div class="sheet">
-    <div class="sheet-head">
-      <h2 id="questFormTitle">スタンプ追加</h2>
-      <button class="close-btn" data-close="questOverlay">×</button>
-    </div>
-    <form id="questForm">
-      <input id="questId" type="hidden">
-
-      <div class="field">
-        <label for="questName">スタンプ名</label>
-        <input id="questName" type="text" maxlength="20" placeholder="名前を入力" required>
-      </div>
-
-      <div class="field">
-        <label for="questType">種類</label>
-        <select id="questType">
-          <option value="daily">毎日</option>
-          <option value="weekday">曜日指定</option>
-          <option value="single">単発</option>
-        </select>
-      </div>
-
-      <div id="weekdayField" class="field" style="display:none">
-        <label>曜日（複数選択可）</label>
-        <div class="chips">
-          <label class="chip"><input type="checkbox" value="0"><span>日</span></label>
-          <label class="chip"><input type="checkbox" value="1"><span>月</span></label>
-          <label class="chip"><input type="checkbox" value="2"><span>火</span></label>
-          <label class="chip"><input type="checkbox" value="3"><span>水</span></label>
-          <label class="chip"><input type="checkbox" value="4"><span>木</span></label>
-          <label class="chip"><input type="checkbox" value="5"><span>金</span></label>
-          <label class="chip"><input type="checkbox" value="6"><span>土</span></label>
-        </div>
-      </div>
-
-      <div id="rangeField" class="field">
-        <div class="row2">
-          <div>
-            <label for="startDate" style="display:block;margin-bottom:6px;font-size:13px;color:var(--muted)">開始日</label>
-            <input id="startDate" type="date" required>
-          </div>
-          <div id="endDateWrap">
-            <label for="endDate" style="display:block;margin-bottom:6px;font-size:13px;color:var(--muted)">終了日（任意）</label>
-            <input id="endDate" type="date">
-          </div>
-        </div>
-      </div>
-
-      <div id="carryField" class="field" style="display:none">
-        <div class="toggle-row">
-          <div>
-            <div style="font-weight:750">未完了なら翌日に持ち越す</div>
-            <div class="help">完了した日にスタンプが付きます</div>
-          </div>
-          <input id="carryOver" type="checkbox">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>達成スタンプ画像（任意・複数可）</label>
-        <input id="imageInput" type="file" accept="image/*" multiple hidden>
-        <div class="help">何枚でも追加できます。2枚以上ある場合、直前に出た画像を避けてランダム表示します。</div>
-        <div id="imageGallery" class="image-gallery"></div>
-      </div>
-
-      <div id="textStampFields">
-        <div class="field">
-          <label for="stampText">画像なし時の文字</label>
-          <input id="stampText" type="text" maxlength="12" placeholder="未入力ならスタンプ名">
-        </div>
-        <div class="field">
-          <label for="stampColor">スタンプ色</label>
-          <input id="stampColor" type="color" value="#d96c7a" style="width:56px;height:42px;border:0;background:transparent;padding:0">
-        </div>
-      </div>
-
-      <button class="primary full" type="submit" style="margin-top:8px">保存</button>
-    </form>
-  </div>
-</div>
-
-<div id="cropOverlay" class="overlay crop-editor-overlay">
-  <div class="crop-editor">
-    <h2>トリミング位置</h2>
-    <div class="crop-help">画像を指で動かして、丸の中の位置を調整</div>
-    <div id="cropPreview" class="crop-preview">
-      <img id="cropPreviewImage" alt="トリミングプレビュー">
-    </div>
-    <div class="crop-zoom">
-      <div class="crop-zoom-head">
-        <span>拡大・縮小</span>
-        <span id="cropZoomValue">100%</span>
-      </div>
-      <input id="cropZoomRange" type="range" min="100" max="300" step="1" value="100">
-    </div>
-    <div class="crop-actions">
-      <button id="cropResetBtn" type="button" class="secondary">中央に戻す</button>
-      <button id="cropDoneBtn" type="button" class="primary">決定</button>
-    </div>
-  </div>
-</div>
-
-<div id="libraryOverlay" class="overlay">
-  <div class="sheet library-sheet">
-    <div class="sheet-head">
-      <h2>画像ライブラリ</h2>
-      <button class="close-btn" data-close="libraryOverlay">×</button>
-    </div>
-    <div class="library-month-head">
-      <button id="libraryPrevMonthBtn" class="icon-btn" aria-label="前の月">‹</button>
-      <h3 id="libraryMonthTitle"></h3>
-      <button id="libraryNextMonthBtn" class="icon-btn" aria-label="次の月">›</button>
-    </div>
-    <div id="monthlyPhotoGrid" class="monthly-photo-grid"></div>
-  </div>
-</div>
-
-<div id="photoViewerOverlay" class="overlay photo-viewer-overlay">
-  <div class="photo-viewer">
-    <button id="photoViewerClose" type="button" class="photo-viewer-close">×</button>
-    <img id="photoViewerImage" alt="日記画像">
-  </div>
-</div>
-
-<script>
 (() => {
   "use strict";
 
@@ -1681,16 +69,7 @@
       memos: {},
       diaries: {},
       diaryImages: {},
-      wants: [],
-      archive: {
-        categories:[
-          {id:"cat-manga",name:"漫画",sortOrder:0},
-          {id:"cat-game",name:"ゲーム",sortOrder:1},
-          {id:"cat-anime",name:"アニメ",sortOrder:2},
-          {id:"cat-movie",name:"映画",sortOrder:3}
-        ],
-        items:[]
-      }
+      wants: []
     };
   }
 
@@ -1706,7 +85,6 @@
       memos:next.memos && typeof next.memos==="object" ? next.memos : {},
       diaries:next.diaries && typeof next.diaries==="object" ? next.diaries : {},
       diaryImages:next.diaryImages && typeof next.diaryImages==="object" ? next.diaryImages : {},
-      archive:normalizeArchiveState(next.archive),
       wants:Array.isArray(next.wants) ? next.wants.map((item,index)=>({
         id:item?.id || uid("want"),
         text:String(item?.text || ""),
@@ -3398,31 +1776,46 @@
 
 
 
-  // ===== ARCHIVE (integrated: backup + cloud sync + Storage) =====
-  const ARCHIVE_LEGACY_DB = "stamp-card-archive-prototype";
-  const ARCHIVE_LEGACY_DB_VERSION = 1;
-  const ARCHIVE_LEGACY_STORE = "kv";
-  const ARCHIVE_LEGACY_KEY = "state";
-  const ARCHIVE_MIGRATION_FLAG = "stamp-card-archive-main-migrated-v1";
-  const ARCHIVE_DEFAULT_CATEGORIES = [
-    {id:"cat-manga",name:"漫画",sortOrder:0},
-    {id:"cat-game",name:"ゲーム",sortOrder:1},
-    {id:"cat-anime",name:"アニメ",sortOrder:2},
-    {id:"cat-movie",name:"映画",sortOrder:3}
-  ];
-
+  // ===== ARCHIVE (phase 1: local-only, separate IndexedDB) =====
+  const ARCHIVE_LOCAL_DB = "stamp-card-archive-prototype";
+  const ARCHIVE_LOCAL_DB_VERSION = 1;
+  const ARCHIVE_LOCAL_STORE = "kv";
+  const ARCHIVE_LOCAL_KEY = "state";
+  const ARCHIVE_LOCAL_DEFAULT = {
+    schemaVersion:1,
+    categories:[
+      {id:"cat-manga",name:"漫画",sortOrder:0},
+      {id:"cat-game",name:"ゲーム",sortOrder:1},
+      {id:"cat-anime",name:"アニメ",sortOrder:2},
+      {id:"cat-movie",name:"映画",sortOrder:3}
+    ],
+    items:[]
+  };
+  let archiveLocalState = structuredClone(ARCHIVE_LOCAL_DEFAULT);
+  let archiveLocalLoaded = false;
+  let archiveLocalLoading = null;
   let archiveFilterCategoryId = "all";
   let archiveCurrentRating = 0;
   let archiveCurrentImageData = null;
-  let archiveCurrentImageCloudPath = null;
-  let archiveCurrentImageId = null;
 
-  function normalizeArchiveState(raw){
-    const hasCategories = raw && Array.isArray(raw.categories);
-    const categoriesSource = hasCategories ? raw.categories : ARCHIVE_DEFAULT_CATEGORIES;
-    const items = Array.isArray(raw?.items) ? raw.items : [];
+  function openArchiveLocalDb(){
+    return new Promise((resolve,reject)=>{
+      const req = indexedDB.open(ARCHIVE_LOCAL_DB,ARCHIVE_LOCAL_DB_VERSION);
+      req.onupgradeneeded = ()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains(ARCHIVE_LOCAL_STORE)) db.createObjectStore(ARCHIVE_LOCAL_STORE);
+      };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+
+  function normalizeArchiveLocalState(raw){
+    const categories=Array.isArray(raw?.categories)?raw.categories:[];
+    const items=Array.isArray(raw?.items)?raw.items:[];
     return {
-      categories:categoriesSource
+      schemaVersion:1,
+      categories:categories
         .filter(x=>x&&x.id&&typeof x.name==="string")
         .map((x,i)=>({
           id:String(x.id),
@@ -3432,105 +1825,55 @@
         .sort((a,b)=>a.sortOrder-b.sortOrder),
       items:items
         .filter(x=>x&&x.id&&typeof x.title==="string")
-        .map(x=>{
-          let image=null;
-          if(x.image && typeof x.image==="object"){
-            image={
-              id:x.image.id || uid("archiveimg"),
-              data:typeof x.image.data==="string" ? x.image.data : null,
-              cloudPath:typeof x.image.cloudPath==="string" ? x.image.cloudPath : null
-            };
-          }else if(typeof x.imageData==="string" && x.imageData){
-            image={
-              id:x.imageId || ("archiveimg_"+String(x.id)),
-              data:x.imageData,
-              cloudPath:typeof x.imageCloudPath==="string" ? x.imageCloudPath : null
-            };
-          }
-          return {
-            id:String(x.id),
-            title:String(x.title),
-            categoryId:x.categoryId?String(x.categoryId):null,
-            completedDate:/^\d{4}-\d{2}-\d{2}$/.test(String(x.completedDate||"")) ? String(x.completedDate) : null,
-            rating:[0,1,2,3].includes(Number(x.rating))?Number(x.rating):0,
-            comment:typeof x.comment==="string"?x.comment:"",
-            image,
-            createdAt:x.createdAt||new Date().toISOString(),
-            updatedAt:x.updatedAt||x.createdAt||new Date().toISOString()
-          };
-        })
+        .map(x=>({
+          id:String(x.id),
+          title:String(x.title),
+          categoryId:x.categoryId?String(x.categoryId):null,
+          rating:[0,1,2,3].includes(Number(x.rating))?Number(x.rating):0,
+          comment:typeof x.comment==="string"?x.comment:"",
+          imageData:typeof x.imageData==="string"?x.imageData:null,
+          createdAt:x.createdAt||new Date().toISOString(),
+          updatedAt:x.updatedAt||x.createdAt||new Date().toISOString()
+        }))
     };
   }
 
-  function archiveState(){
-    if(!state.archive || typeof state.archive!=="object") state.archive=normalizeArchiveState(null);
-    return state.archive;
+  async function loadArchiveLocalState(){
+    const db=await openArchiveLocalDb();
+    const value=await new Promise((resolve,reject)=>{
+      const tx=db.transaction(ARCHIVE_LOCAL_STORE,"readonly");
+      const req=tx.objectStore(ARCHIVE_LOCAL_STORE).get(ARCHIVE_LOCAL_KEY);
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+    if(value&&typeof value==="object") archiveLocalState=normalizeArchiveLocalState(value);
+    archiveLocalLoaded=true;
   }
 
-  async function readLegacyArchivePrototype(){
-    try{
-      const db=await new Promise((resolve,reject)=>{
-        const req=indexedDB.open(ARCHIVE_LEGACY_DB,ARCHIVE_LEGACY_DB_VERSION);
-        req.onupgradeneeded=()=>{
-          const db=req.result;
-          if(!db.objectStoreNames.contains(ARCHIVE_LEGACY_STORE)) db.createObjectStore(ARCHIVE_LEGACY_STORE);
-        };
-        req.onsuccess=()=>resolve(req.result);
-        req.onerror=()=>reject(req.error);
-      });
-      const value=await new Promise((resolve,reject)=>{
-        const tx=db.transaction(ARCHIVE_LEGACY_STORE,"readonly");
-        const req=tx.objectStore(ARCHIVE_LEGACY_STORE).get(ARCHIVE_LEGACY_KEY);
-        req.onsuccess=()=>resolve(req.result);
-        req.onerror=()=>reject(req.error);
-      });
-      try{db.close();}catch{}
-      return value&&typeof value==="object" ? normalizeArchiveState(value) : null;
-    }catch(err){
-      console.warn("Legacy ARCHIVE read skipped",err);
-      return null;
+  async function ensureArchiveLocalLoaded(){
+    if(archiveLocalLoaded) return;
+    if(!archiveLocalLoading){
+      archiveLocalLoading=loadArchiveLocalState().finally(()=>{archiveLocalLoading=null;});
     }
+    await archiveLocalLoading;
   }
 
-  async function migrateLegacyArchivePrototypeIfNeeded(){
-    if(localStorage.getItem(ARCHIVE_MIGRATION_FLAG)==="1") return false;
-    const legacy=await readLegacyArchivePrototype();
-    if(!legacy){
-      localStorage.setItem(ARCHIVE_MIGRATION_FLAG,"1");
-      return false;
-    }
-
-    const target=archiveState();
-    let changed=false;
-    const categoryIds=new Set(target.categories.map(c=>c.id));
-    for(const cat of legacy.categories){
-      if(categoryIds.has(cat.id)) continue;
-      target.categories.push({...cat,sortOrder:target.categories.length});
-      categoryIds.add(cat.id);
-      changed=true;
-    }
-
-    const itemIds=new Set(target.items.map(item=>item.id));
-    for(const item of legacy.items){
-      if(itemIds.has(item.id)) continue;
-      target.items.push(item);
-      itemIds.add(item.id);
-      changed=true;
-    }
-
-    if(changed) await saveState();
-    localStorage.setItem(ARCHIVE_MIGRATION_FLAG,"1");
-    return changed;
+  async function saveArchiveLocalState(){
+    const db=await openArchiveLocalDb();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(ARCHIVE_LOCAL_STORE,"readwrite");
+      tx.objectStore(ARCHIVE_LOCAL_STORE).put(archiveLocalState,ARCHIVE_LOCAL_KEY);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error);
+    });
   }
 
   function archiveLocalCategoryById(id){
-    return (archiveState().categories||[]).find(c=>c.id===id)||null;
+    return (archiveLocalState.categories||[]).find(c=>c.id===id)||null;
   }
   function sortedArchiveLocalCategories(){
-    return [...(archiveState().categories||[])].sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
+    return [...(archiveLocalState.categories||[])].sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
   }
-  async function ensureArchiveLocalLoaded(){ return; }
-  async function saveArchiveLocalState(){ await saveState(); }
 
   function renderArchiveLocalCategoryOptions(){
     const filter=$("archiveCategoryFilter");
@@ -3554,7 +1897,7 @@
   function renderArchiveLocalGrid(){
     const grid=$("archiveGrid");
     if(!grid) return;
-    let items=[...(archiveState().items||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+    let items=[...(archiveLocalState.items||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
     if(archiveFilterCategoryId==="none") items=items.filter(x=>!archiveLocalCategoryById(x.categoryId));
     else if(archiveFilterCategoryId!=="all") items=items.filter(x=>x.categoryId===archiveFilterCategoryId);
 
@@ -3574,8 +1917,8 @@
       btn.className="archive-item";
       const cover=document.createElement("div");
       cover.className="archive-cover";
-      if(item.image?.data){
-        const img=document.createElement("img"); img.src=item.image.data; img.alt=""; cover.appendChild(img);
+      if(item.imageData){
+        const img=document.createElement("img"); img.src=item.imageData; img.alt=""; cover.appendChild(img);
       }else cover.textContent="NO IMAGE";
       const title=document.createElement("div"); title.className="archive-item-title"; title.textContent=item.title;
       const rating=document.createElement("div"); rating.className="archive-item-rating"; rating.textContent=item.rating?"★".repeat(item.rating)+"☆".repeat(3-item.rating):"";
@@ -3628,12 +1971,12 @@
     if(archiveCurrentImageData){
       img.src=archiveCurrentImageData; box.classList.add("has-image"); remove.hidden=false;
     }else{
-      img.removeAttribute("src"); box.classList.remove("has-image"); remove.hidden=!(archiveCurrentImageCloudPath);
+      img.removeAttribute("src"); box.classList.remove("has-image"); remove.hidden=true;
     }
   }
 
   function openArchiveLocalItemForm(id=null){
-    const item=id?(archiveState().items||[]).find(x=>x.id===id):null;
+    const item=id?(archiveLocalState.items||[]).find(x=>x.id===id):null;
     $("archiveItemForm").reset();
     renderArchiveLocalCategoryOptions();
     if(item){
@@ -3641,11 +1984,8 @@
       $("archiveItemId").value=item.id;
       $("archiveItemTitle").value=item.title;
       $("archiveItemCategory").value=archiveLocalCategoryById(item.categoryId)?item.categoryId:"";
-      $("archiveItemCompletedDate").value=item.completedDate||"";
       $("archiveItemComment").value=item.comment||"";
-      archiveCurrentImageData=item.image?.data||null;
-      archiveCurrentImageCloudPath=item.image?.cloudPath||null;
-      archiveCurrentImageId=item.image?.id||null;
+      archiveCurrentImageData=item.imageData||null;
       setArchiveLocalRating(item.rating||0);
       $("archiveNewItemActions").hidden=true;
       $("archiveEditItemActions").hidden=false;
@@ -3654,11 +1994,8 @@
       $("archiveItemId").value="";
       $("archiveItemTitle").value="";
       $("archiveItemCategory").value="";
-      $("archiveItemCompletedDate").value="";
       $("archiveItemComment").value="";
       archiveCurrentImageData=null;
-      archiveCurrentImageCloudPath=null;
-      archiveCurrentImageId=null;
       setArchiveLocalRating(0);
       $("archiveNewItemActions").hidden=false;
       $("archiveEditItemActions").hidden=true;
@@ -3674,19 +2011,13 @@
     if(!title) return;
     const id=$("archiveItemId").value;
     const categoryId=$("archiveItemCategory").value||null;
-    const completedDate=$("archiveItemCompletedDate").value||null;
     const comment=$("archiveItemComment").value;
     const now=new Date().toISOString();
-    const image=(archiveCurrentImageData||archiveCurrentImageCloudPath) ? {
-      id:archiveCurrentImageId||uid("archiveimg"),
-      data:archiveCurrentImageData||null,
-      cloudPath:archiveCurrentImageCloudPath||null
-    } : null;
     if(id){
-      const item=(archiveState().items||[]).find(x=>x.id===id); if(!item) return;
-      item.title=title; item.categoryId=categoryId; item.completedDate=completedDate; item.rating=archiveCurrentRating; item.comment=comment; item.image=image; item.updatedAt=now;
+      const item=(archiveLocalState.items||[]).find(x=>x.id===id); if(!item) return;
+      item.title=title; item.categoryId=categoryId; item.rating=archiveCurrentRating; item.comment=comment; item.imageData=archiveCurrentImageData; item.updatedAt=now;
     }else{
-      archiveState().items.push({id:uid("archive"),title,categoryId,completedDate,rating:archiveCurrentRating,comment,image,createdAt:now,updatedAt:now});
+      archiveLocalState.items.push({id:uid("archive"),title,categoryId,rating:archiveCurrentRating,comment,imageData:archiveCurrentImageData,createdAt:now,updatedAt:now});
     }
     await saveArchiveLocalState();
     closeOverlay("archiveItemOverlay");
@@ -3695,24 +2026,24 @@
 
   async function deleteArchiveLocalItem(){
     const id=$("archiveItemId").value; if(!id) return;
-    const item=(archiveState().items||[]).find(x=>x.id===id); if(!item) return;
+    const item=(archiveLocalState.items||[]).find(x=>x.id===id); if(!item) return;
     if(!confirm(`「${item.title}」を削除しますか？`)) return;
-    archiveState().items=archiveState().items.filter(x=>x.id!==id);
+    archiveLocalState.items=archiveLocalState.items.filter(x=>x.id!==id);
     await saveArchiveLocalState(); closeOverlay("archiveItemOverlay"); renderArchiveLocal();
   }
 
   async function moveArchiveLocalCategory(id,delta){
     const cats=sortedArchiveLocalCategories(); const index=cats.findIndex(c=>c.id===id),next=index+delta;
     if(index<0||next<0||next>=cats.length) return;
-    [cats[index],cats[next]]=[cats[next],cats[index]]; cats.forEach((c,i)=>c.sortOrder=i); archiveState().categories=cats;
+    [cats[index],cats[next]]=[cats[next],cats[index]]; cats.forEach((c,i)=>c.sortOrder=i); archiveLocalState.categories=cats;
     await saveArchiveLocalState(); renderArchiveLocal();
   }
 
   async function deleteArchiveLocalCategory(id){
     const cat=archiveLocalCategoryById(id); if(!cat) return;
     if(!confirm(`カテゴリー「${cat.name}」を削除しますか？\n作品は削除されず、カテゴリーなしになります。`)) return;
-    archiveState().categories=archiveState().categories.filter(c=>c.id!==id);
-    archiveState().items.forEach(item=>{if(item.categoryId===id)item.categoryId=null;});
+    archiveLocalState.categories=archiveLocalState.categories.filter(c=>c.id!==id);
+    archiveLocalState.items.forEach(item=>{if(item.categoryId===id)item.categoryId=null;});
     sortedArchiveLocalCategories().forEach((c,i)=>c.sortOrder=i);
     if(archiveFilterCategoryId===id) archiveFilterCategoryId="all";
     await saveArchiveLocalState(); renderArchiveLocal();
@@ -3720,12 +2051,12 @@
 
   async function addArchiveLocalCategory(){
     const input=$("archiveNewCategoryName"),name=input.value.trim(); if(!name) return;
-    archiveState().categories.push({id:uid("archivecat"),name,sortOrder:archiveState().categories.length});
+    archiveLocalState.categories.push({id:uid("archivecat"),name,sortOrder:archiveLocalState.categories.length});
     input.value=""; await saveArchiveLocalState(); renderArchiveLocal();
   }
 
   async function prepareArchiveLocalScreen(){
-    try{ renderArchiveLocal(); }
+    try{ await ensureArchiveLocalLoaded(); renderArchiveLocal(); }
     catch(err){ console.error(err); alert("ARCHIVEの読み込みに失敗しました"); }
   }
 
@@ -4437,16 +2768,11 @@
   $("archiveItemImageInput").addEventListener("change",async e=>{
     const file=e.target.files?.[0];
     if(!file) return;
-    try{
-      archiveCurrentImageData=await diaryImageFileToDataURL(file);
-      archiveCurrentImageCloudPath=null;
-      archiveCurrentImageId=uid("archiveimg");
-      renderArchiveLocalImagePreview();
-    }
+    try{ archiveCurrentImageData=await diaryImageFileToDataURL(file); renderArchiveLocalImagePreview(); }
     catch(err){ console.error(err); alert(err.message||"画像の読み込みに失敗しました"); }
     finally{ e.target.value=""; }
   });
-  $("archiveRemoveImageBtn").onclick=()=>{ archiveCurrentImageData=null; archiveCurrentImageCloudPath=null; archiveCurrentImageId=null; renderArchiveLocalImagePreview(); };
+  $("archiveRemoveImageBtn").onclick=()=>{ archiveCurrentImageData=null; renderArchiveLocalImagePreview(); };
   $("wantOpenTab").onclick = ()=>{ wantView = "open"; renderWants(); };
   $("wantDoneTab").onclick = ()=>{ wantView = "done"; renderWants(); };
   $("reorderDoneBtn").onclick = exitReorderMode;
@@ -4512,8 +2838,7 @@
       `このバックアップを読み込みますか？\n\n` +
       `スタンプ：${incoming.quests.length}件\n` +
       `達成記録：${incoming.completions.length}件\n` +
-      `やりたいこと：${incoming.wants.length}件\n` +
-      `アーカイブ：${incoming.archive?.items?.length || 0}件\n\n` +
+      `やりたいこと：${incoming.wants.length}件\n\n` +
       `現在のデータは上書きされます。`;
 
     if(!confirm(summary)) return;
@@ -4525,7 +2850,6 @@
       renderCalendar();
       renderManage();
       renderWants();
-      renderArchiveLocal();
       alert("バックアップを読み込みました。");
     }catch(err){
       console.error(err);
@@ -4651,15 +2975,6 @@
       }
     }
 
-    for(const item of cloned.archive?.items || []){
-      const image=item?.image;
-      if(image?.data){
-        if(!image.cloudPath) missingCloudPath++;
-        delete image.data;
-        stripped++;
-      }
-    }
-
     return {cloudState:cloned, missingCloudPath, stripped};
   }
 
@@ -4680,8 +2995,7 @@
       Object.keys(s.memos || {}).length===0 &&
       Object.keys(s.diaries || {}).length===0 &&
       Object.keys(s.diaryImages || {}).length===0 &&
-      (s.wants || []).length===0 &&
-      (s.archive?.items || []).length===0
+      (s.wants || []).length===0
     );
   }
 
@@ -4767,7 +3081,6 @@
     renderCalendar();
     renderManage();
     renderWants();
-    renderArchiveLocal();
   }
 
   async function cloudLogin(){
@@ -4876,13 +3189,6 @@
       }
     }
 
-    for(const item of incoming.archive?.items || []){
-      const image=item?.image;
-      if(image?.cloudPath && !image.data){
-        items.push({image});
-      }
-    }
-
     return items;
   }
 
@@ -4904,13 +3210,6 @@
         if(image?.cloudPath && image?.data){
           map.set(image.cloudPath, image.data);
         }
-      }
-    }
-
-    for(const item of state.archive?.items || []){
-      const image=item?.image;
-      if(image?.cloudPath && image?.data){
-        map.set(image.cloudPath, image.data);
       }
     }
 
@@ -5054,8 +3353,7 @@
       `クラウドのデータをこの端末へ読み込みますか？\n\n` +
       `クラウド更新：${when}\n` +
       `スタンプ：${incoming.quests.length}件\n` +
-      `達成記録：${incoming.completions.length}件\n` +
-      `アーカイブ：${incoming.archive?.items?.length || 0}件\n\n` +
+      `達成記録：${incoming.completions.length}件\n\n` +
       `この端末の現在データは上書きされます。`;
 
     if(!confirm(msg)){
@@ -5312,16 +3610,6 @@
       }
     }
 
-    for(const item of state.archive?.items || []){
-      const image=item?.image;
-      if(!image?.data || image.cloudPath) continue;
-      items.push({
-        kind:"archive",
-        image,
-        basePath:`${userId}/archive/${item.id}/${image.id}`
-      });
-    }
-
     return items;
   }
 
@@ -5361,9 +3649,6 @@
       ) +
       Object.values(state.diaryImages || {}).reduce((n,arr)=>
         n + (Array.isArray(arr) ? arr.filter(x=>x?.data && x.cloudPath).length : 0), 0
-      ) +
-      (state.archive?.items || []).reduce((n,item)=>
-        n + (item?.image?.data && item.image.cloudPath ? 1 : 0), 0
       );
 
     if(!items.length){
@@ -5743,11 +4028,9 @@
   async function init(){
     try{
       state = await loadState();
-      await migrateLegacyArchivePrototypeIfNeeded();
       renderHome();
       renderCalendar();
       renderWants();
-      renderArchiveLocal();
     }catch(err){
       console.error(err);
       alert("データの読み込みに失敗しました");
@@ -5777,13 +4060,10 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.70-archive-sync").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.69-archive-local").catch(console.error);
       });
     }
   }
 
   init();
 })();
-</script>
-</body>
-</html>
