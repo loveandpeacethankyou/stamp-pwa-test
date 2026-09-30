@@ -795,6 +795,7 @@
       border-top:1px solid rgba(90,75,50,.08);
     }
     .nav-btn{
+      position:relative;
       border:0;
       border-radius:14px;
       padding:9px 10px;
@@ -803,6 +804,27 @@
       font-size:13px;
       font-weight:700;
     }
+    .task-badge{
+      position:absolute;
+      top:2px;
+      right:12px;
+      min-width:18px;
+      height:18px;
+      padding:0 5px;
+      border-radius:999px;
+      background:#b77a7a;
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:10px;
+      line-height:1;
+      font-weight:800;
+      box-shadow:0 1px 4px rgba(55,45,30,.16);
+      pointer-events:none;
+      font-variant-numeric:tabular-nums;
+    }
+    .task-badge[hidden]{display:none!important}
     .nav-btn.active{
       background:var(--paper);
       color:var(--ink);
@@ -1354,7 +1376,7 @@
 
 <nav class="bottom-nav">
   <button id="homeNav" class="nav-btn active">今日</button>
-  <button id="wantsNav" class="nav-btn">やりたいこと</button>
+  <button id="wantsNav" class="nav-btn"><span>タスク</span><span id="taskBadge" class="task-badge" hidden></span></button>
   <button id="archiveNav" class="nav-btn">アーカイブ</button>
 </nav>
 
@@ -1487,7 +1509,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.73 calendar top icon</div>
+    <div class="version">Stamp Card v1.9.74 calendar top icon</div>
   </div>
 </div>
 
@@ -2489,7 +2511,24 @@
     return row;
   }
 
+  function renderTaskBadge(){
+    const nav = $("wantsNav");
+    const badge = $("taskBadge");
+    if(!nav || !badge || !state) return;
+    const count = (state.wants || []).filter(item=>!item.completedAt).length;
+    if(count > 0){
+      badge.textContent = count > 99 ? "99+" : String(count);
+      badge.hidden = false;
+      nav.setAttribute("aria-label", `タスク 未完了${count}件`);
+    }else{
+      badge.textContent = "";
+      badge.hidden = true;
+      nav.setAttribute("aria-label", "タスク");
+    }
+  }
+
   function renderWants(){
+    renderTaskBadge();
     const root = $("wantList");
     if(!root || !state) return;
     root.innerHTML = "";
