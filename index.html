@@ -1211,12 +1211,31 @@
     .archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:260px}
     .archive-item{width:100%;min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:left}
     .archive-cover{
+      position:relative;
       width:100%;aspect-ratio:2/3;border-radius:11px;overflow:hidden;
       background:linear-gradient(145deg,#eee8de,#e2dbd0);display:grid;place-items:center;
       box-shadow:0 2px 8px rgba(55,45,30,.08),0 0 0 1px rgba(90,75,50,.07);
       color:#aaa298;font-size:10px;letter-spacing:.05em;font-weight:700;
     }
     .archive-cover img{width:100%;height:100%;object-fit:cover;display:block}
+    .archive-loop-badge{
+      position:absolute;
+      right:7px;
+      bottom:7px;
+      z-index:2;
+      padding:4px 7px 4px;
+      border:1px solid rgba(165,111,88,.34);
+      border-radius:999px;
+      background:rgba(255,253,248,.90);
+      color:#9d634d;
+      box-shadow:0 2px 7px rgba(55,45,30,.14);
+      font-size:10px;
+      line-height:1;
+      font-weight:800;
+      letter-spacing:.01em;
+      white-space:nowrap;
+      backdrop-filter:blur(3px);
+    }
     .archive-item-title{margin-top:7px;font-size:12px;line-height:1.3;font-weight:750;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
     .archive-item-meta{margin-top:2px;display:flex;align-items:center;gap:6px;min-height:13px;font-size:10px;line-height:1.3;white-space:nowrap}
     .archive-item-date{color:var(--muted);font-variant-numeric:tabular-nums}
@@ -1515,7 +1534,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.75 loop + UI sounds</div>
+    <div class="version">Stamp Card v1.9.76 loop + UI sounds</div>
   </div>
 </div>
 
@@ -3647,11 +3666,12 @@
         meta.appendChild(date);
       }
       if(Number(item.loopCount||1)>1){
-        const loop=document.createElement("span");
-        loop.className="archive-item-loop";
-        loop.textContent=`↻${Math.min(99,Math.floor(Number(item.loopCount)))}`;
-        loop.title=`${Math.floor(Number(item.loopCount))}周目`;
-        meta.appendChild(loop);
+        const loopBadge=document.createElement("span");
+        loopBadge.className="archive-loop-badge";
+        const loopCount=Math.min(99,Math.floor(Number(item.loopCount)));
+        loopBadge.textContent=`${loopCount}周目`;
+        loopBadge.title=`${loopCount}周目`;
+        cover.appendChild(loopBadge);
       }
       const rating=document.createElement("div"); rating.className="archive-item-rating"; rating.textContent=item.rating?"★".repeat(item.rating)+"☆".repeat(3-item.rating):"";
       const category=document.createElement("div"); category.className="archive-item-category"; category.textContent=archiveLocalCategoryById(item.categoryId)?.name||"カテゴリーなし";
