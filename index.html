@@ -1450,6 +1450,8 @@
           <button class="archive-star-btn" type="button" data-archive-rating="1" aria-label="星1">★</button>
           <button class="archive-star-btn" type="button" data-archive-rating="2" aria-label="星2">★</button>
           <button class="archive-star-btn" type="button" data-archive-rating="3" aria-label="星3">★</button>
+          <button class="archive-star-btn" type="button" data-archive-rating="4" aria-label="星4">★</button>
+          <button class="archive-star-btn" type="button" data-archive-rating="5" aria-label="星5">★</button>
           <button id="archiveRatingClear" class="archive-rating-clear" type="button">未評価</button>
         </div>
       </div>
@@ -1537,7 +1539,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.78 loop title badge + UI sounds</div>
+    <div class="version">Stamp Card v1.9.79 loop title badge + UI sounds</div>
   </div>
 </div>
 
@@ -3534,7 +3536,7 @@
             categoryId:x.categoryId?String(x.categoryId):null,
             completedDate:/^\d{4}-\d{2}-\d{2}$/.test(String(x.completedDate||"")) ? String(x.completedDate) : null,
             loopCount:Number.isFinite(Number(x.loopCount)) && Number(x.loopCount)>=1 ? Math.min(99,Math.floor(Number(x.loopCount))) : 1,
-            rating:[0,1,2,3].includes(Number(x.rating))?Number(x.rating):0,
+            rating:[0,1,2,3,4,5].includes(Number(x.rating))?Number(x.rating):0,
             comment:typeof x.comment==="string"?x.comment:"",
             image,
             createdAt:x.createdAt||new Date().toISOString(),
@@ -3680,7 +3682,7 @@
         date.textContent=`${y}/${Number(m)}/${Number(d)}`;
         meta.appendChild(date);
       }
-      const rating=document.createElement("div"); rating.className="archive-item-rating"; rating.textContent=item.rating?"★".repeat(item.rating)+"☆".repeat(3-item.rating):"";
+      const rating=document.createElement("div"); rating.className="archive-item-rating"; rating.textContent=item.rating?"★".repeat(item.rating)+"☆".repeat(5-item.rating):"";
       const category=document.createElement("div"); category.className="archive-item-category"; category.textContent=archiveLocalCategoryById(item.categoryId)?.name||"カテゴリーなし";
       btn.append(cover,title);
       if(meta.childElementCount) btn.append(meta);
@@ -3721,7 +3723,7 @@
   }
 
   function setArchiveLocalRating(value){
-    archiveCurrentRating=Math.max(0,Math.min(3,Number(value)||0));
+    archiveCurrentRating=Math.max(0,Math.min(5,Number(value)||0));
     document.querySelectorAll(".archive-star-btn").forEach(btn=>{
       btn.classList.toggle("on",Number(btn.dataset.archiveRating)<=archiveCurrentRating);
     });
