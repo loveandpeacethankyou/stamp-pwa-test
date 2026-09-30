@@ -790,7 +790,7 @@
       background:rgba(244,240,232,.94);
       backdrop-filter:blur(16px);
       display:grid;
-      grid-template-columns:1fr 1fr 1fr;
+      grid-template-columns:repeat(4,minmax(0,1fr));
       gap:8px;
       border-top:1px solid rgba(90,75,50,.08);
     }
@@ -1166,6 +1166,64 @@
       padding-left:13px;
       padding-right:13px;
     }
+
+
+    /* ARCHIVE — phase 1: local-only prototype data */
+    .archive-card{
+      background:var(--paper);
+      border:1px solid rgba(90,75,50,.08);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+      padding:14px;
+      min-height:420px;
+    }
+    .archive-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .archive-filter-wrap{position:relative;flex:1 1 auto;min-width:0}
+    .archive-filter{
+      width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--ink);
+      padding:10px 36px 10px 12px;outline:none;appearance:none;font-size:13px;
+    }
+    .archive-filter-arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:12px}
+    .archive-category-btn{border:0;border-radius:13px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:12px;font-weight:700;white-space:nowrap}
+    .archive-count{margin:-3px 2px 10px;min-height:16px;text-align:right;color:var(--muted);font-size:11px}
+    .archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:260px}
+    .archive-item{width:100%;min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:left}
+    .archive-cover{
+      width:100%;aspect-ratio:2/3;border-radius:11px;overflow:hidden;
+      background:linear-gradient(145deg,#eee8de,#e2dbd0);display:grid;place-items:center;
+      box-shadow:0 2px 8px rgba(55,45,30,.08),0 0 0 1px rgba(90,75,50,.07);
+      color:#aaa298;font-size:10px;letter-spacing:.05em;font-weight:700;
+    }
+    .archive-cover img{width:100%;height:100%;object-fit:cover;display:block}
+    .archive-item-title{margin-top:7px;min-height:31px;font-size:12px;line-height:1.3;font-weight:750;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
+    .archive-item-rating{margin-top:3px;min-height:15px;color:#a56f58;font-size:11px;letter-spacing:.05em;white-space:nowrap}
+    .archive-item-category{margin-top:2px;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .archive-empty{grid-column:1/-1;min-height:280px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.7;padding:30px 12px}
+    .archive-empty strong{display:block;margin-bottom:4px;color:#746f68;font-size:14px}
+    .archive-rating-picker{display:flex;gap:4px;align-items:center}
+    .archive-star-btn{width:42px;height:42px;border:0;background:transparent;color:#c9c1b7;padding:0;font-size:30px;line-height:1}
+    .archive-star-btn.on{color:#a56f58}
+    .archive-rating-clear{border:0;background:transparent;color:var(--muted);font-size:12px;padding:8px;margin-left:4px}
+    .archive-form-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+    .archive-form-actions[hidden]{display:none!important}
+    .archive-form-actions.single{grid-template-columns:1fr}
+    .archive-manage-name{border:0;background:transparent;color:var(--ink);padding:5px 3px;width:100%;outline:none;font-weight:700}
+    .archive-category-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px}
+    .archive-category-add-row input{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:#fff;color:var(--ink);outline:none}
+    .archive-cover-editor{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;align-items:center}
+    .archive-cover-preview{width:104px;aspect-ratio:2/3;border-radius:11px;overflow:hidden;background:linear-gradient(145deg,#eee8de,#e2dbd0);display:grid;place-items:center;color:#aaa298;font-size:10px;letter-spacing:.05em;font-weight:700;box-shadow:0 0 0 1px var(--line)}
+    .archive-cover-preview img{width:100%;height:100%;object-fit:cover;display:none}
+    .archive-cover-preview.has-image img{display:block}
+    .archive-cover-preview.has-image span{display:none}
+    .archive-cover-actions{display:grid;gap:8px}
+    .archive-cover-actions .secondary,.archive-cover-actions .danger-btn{width:100%}
+    .archive-image-note{color:var(--muted);font-size:10px;line-height:1.45}
+    @media (max-width:390px){
+      .archive-grid{gap:16px 8px}
+      .archive-card{padding:12px}
+      .bottom-nav{gap:4px;padding-left:8px;padding-right:8px}
+      .nav-btn{padding-left:4px;padding-right:4px;font-size:12px}
+    }
   </style>
 </head>
 <body>
@@ -1266,13 +1324,104 @@
       <div id="wantList" class="want-list"></div>
     </div>
   </section>
+
+  <section id="archiveScreen" class="screen">
+    <div class="topbar">
+      <button id="archiveAddBtn" class="icon-btn" type="button" aria-label="作品を追加">＋</button>
+      <h1>ARCHIVE</h1>
+      <button id="archiveSettingsBtn" class="icon-btn" type="button" aria-label="カテゴリー管理">⚙︎</button>
+    </div>
+    <div class="archive-card">
+      <div class="archive-toolbar">
+        <div class="archive-filter-wrap">
+          <select id="archiveCategoryFilter" class="archive-filter" aria-label="カテゴリーで絞り込み"></select>
+          <span class="archive-filter-arrow">▼</span>
+        </div>
+        <button id="archiveCategoryManageBtn" class="archive-category-btn" type="button">カテゴリー</button>
+      </div>
+      <div id="archiveCount" class="archive-count"></div>
+      <div id="archiveGrid" class="archive-grid"></div>
+    </div>
+  </section>
 </div>
 
 <nav class="bottom-nav">
   <button id="homeNav" class="nav-btn active">今日</button>
   <button id="calendarNav" class="nav-btn">カレンダー</button>
   <button id="wantsNav" class="nav-btn">やりたいこと</button>
+  <button id="archiveNav" class="nav-btn">アーカイブ</button>
 </nav>
+
+
+
+<div id="archiveItemOverlay" class="overlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="archiveItemFormTitle">作品を追加</h2>
+      <button class="close-btn" type="button" data-close="archiveItemOverlay">×</button>
+    </div>
+    <form id="archiveItemForm">
+      <input id="archiveItemId" type="hidden">
+      <div class="field">
+        <label for="archiveItemTitle">タイトル</label>
+        <input id="archiveItemTitle" type="text" maxlength="120" placeholder="作品名を入力" required>
+      </div>
+      <div class="field">
+        <label>画像（任意）</label>
+        <input id="archiveItemImageInput" type="file" accept="image/*" hidden>
+        <div class="archive-cover-editor">
+          <div id="archiveItemImagePreview" class="archive-cover-preview">
+            <img id="archiveItemImagePreviewImg" alt=""><span>NO IMAGE</span>
+          </div>
+          <div class="archive-cover-actions">
+            <button id="archiveChooseImageBtn" class="secondary" type="button">画像を選ぶ</button>
+            <button id="archiveRemoveImageBtn" class="danger-btn" type="button" hidden>画像を外す</button>
+            <div class="archive-image-note">この段階ではARCHIVE画像はこの端末内だけに保存します。</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="archiveItemCategory">カテゴリー</label>
+        <select id="archiveItemCategory"></select>
+      </div>
+      <div class="field">
+        <label>評価</label>
+        <div class="archive-rating-picker">
+          <button class="archive-star-btn" type="button" data-archive-rating="1" aria-label="星1">★</button>
+          <button class="archive-star-btn" type="button" data-archive-rating="2" aria-label="星2">★</button>
+          <button class="archive-star-btn" type="button" data-archive-rating="3" aria-label="星3">★</button>
+          <button id="archiveRatingClear" class="archive-rating-clear" type="button">未評価</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="archiveItemComment">コメント（任意）</label>
+        <textarea id="archiveItemComment" style="min-height:110px;resize:vertical;line-height:1.6"></textarea>
+      </div>
+      <div id="archiveNewItemActions" class="archive-form-actions single">
+        <button class="primary full" type="submit">保存</button>
+      </div>
+      <div id="archiveEditItemActions" class="archive-form-actions" hidden>
+        <button class="danger-btn full" id="archiveDeleteItemBtn" type="button">削除</button>
+        <button class="primary full" type="submit">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="archiveCategoryOverlay" class="overlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>カテゴリー</h2>
+      <button class="close-btn" type="button" data-close="archiveCategoryOverlay">×</button>
+    </div>
+    <div id="archiveCategoryList" class="manage-list"></div>
+    <div class="archive-category-add-row">
+      <input id="archiveNewCategoryName" type="text" maxlength="30" placeholder="カテゴリー名">
+      <button class="secondary" id="archiveAddCategoryBtn" type="button">追加</button>
+    </div>
+    <div class="help">名前変更・並べ替え・削除ができます。カテゴリーを削除しても作品自体は削除されず、「カテゴリーなし」に移動します。</div>
+  </div>
+</div>
 
 <div id="settingsOverlay" class="overlay">
   <div class="sheet">
@@ -1328,7 +1477,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.68</div>
+    <div class="version">Stamp Card v1.9.69 ARCHIVE local</div>
   </div>
 </div>
 
@@ -3233,25 +3382,317 @@
     }
   }
 
+
+
+  // ===== ARCHIVE (phase 1: local-only, separate IndexedDB) =====
+  const ARCHIVE_LOCAL_DB = "stamp-card-archive-prototype";
+  const ARCHIVE_LOCAL_DB_VERSION = 1;
+  const ARCHIVE_LOCAL_STORE = "kv";
+  const ARCHIVE_LOCAL_KEY = "state";
+  const ARCHIVE_LOCAL_DEFAULT = {
+    schemaVersion:1,
+    categories:[
+      {id:"cat-manga",name:"漫画",sortOrder:0},
+      {id:"cat-game",name:"ゲーム",sortOrder:1},
+      {id:"cat-anime",name:"アニメ",sortOrder:2},
+      {id:"cat-movie",name:"映画",sortOrder:3}
+    ],
+    items:[]
+  };
+  let archiveLocalState = structuredClone(ARCHIVE_LOCAL_DEFAULT);
+  let archiveLocalLoaded = false;
+  let archiveLocalLoading = null;
+  let archiveFilterCategoryId = "all";
+  let archiveCurrentRating = 0;
+  let archiveCurrentImageData = null;
+
+  function openArchiveLocalDb(){
+    return new Promise((resolve,reject)=>{
+      const req = indexedDB.open(ARCHIVE_LOCAL_DB,ARCHIVE_LOCAL_DB_VERSION);
+      req.onupgradeneeded = ()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains(ARCHIVE_LOCAL_STORE)) db.createObjectStore(ARCHIVE_LOCAL_STORE);
+      };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+
+  function normalizeArchiveLocalState(raw){
+    const categories=Array.isArray(raw?.categories)?raw.categories:[];
+    const items=Array.isArray(raw?.items)?raw.items:[];
+    return {
+      schemaVersion:1,
+      categories:categories
+        .filter(x=>x&&x.id&&typeof x.name==="string")
+        .map((x,i)=>({
+          id:String(x.id),
+          name:String(x.name).trim()||"名称なし",
+          sortOrder:Number.isFinite(x.sortOrder)?x.sortOrder:i
+        }))
+        .sort((a,b)=>a.sortOrder-b.sortOrder),
+      items:items
+        .filter(x=>x&&x.id&&typeof x.title==="string")
+        .map(x=>({
+          id:String(x.id),
+          title:String(x.title),
+          categoryId:x.categoryId?String(x.categoryId):null,
+          rating:[0,1,2,3].includes(Number(x.rating))?Number(x.rating):0,
+          comment:typeof x.comment==="string"?x.comment:"",
+          imageData:typeof x.imageData==="string"?x.imageData:null,
+          createdAt:x.createdAt||new Date().toISOString(),
+          updatedAt:x.updatedAt||x.createdAt||new Date().toISOString()
+        }))
+    };
+  }
+
+  async function loadArchiveLocalState(){
+    const db=await openArchiveLocalDb();
+    const value=await new Promise((resolve,reject)=>{
+      const tx=db.transaction(ARCHIVE_LOCAL_STORE,"readonly");
+      const req=tx.objectStore(ARCHIVE_LOCAL_STORE).get(ARCHIVE_LOCAL_KEY);
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+    if(value&&typeof value==="object") archiveLocalState=normalizeArchiveLocalState(value);
+    archiveLocalLoaded=true;
+  }
+
+  async function ensureArchiveLocalLoaded(){
+    if(archiveLocalLoaded) return;
+    if(!archiveLocalLoading){
+      archiveLocalLoading=loadArchiveLocalState().finally(()=>{archiveLocalLoading=null;});
+    }
+    await archiveLocalLoading;
+  }
+
+  async function saveArchiveLocalState(){
+    const db=await openArchiveLocalDb();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(ARCHIVE_LOCAL_STORE,"readwrite");
+      tx.objectStore(ARCHIVE_LOCAL_STORE).put(archiveLocalState,ARCHIVE_LOCAL_KEY);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error);
+    });
+  }
+
+  function archiveLocalCategoryById(id){
+    return (archiveLocalState.categories||[]).find(c=>c.id===id)||null;
+  }
+  function sortedArchiveLocalCategories(){
+    return [...(archiveLocalState.categories||[])].sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
+  }
+
+  function renderArchiveLocalCategoryOptions(){
+    const filter=$("archiveCategoryFilter");
+    const itemSelect=$("archiveItemCategory");
+    if(!filter||!itemSelect) return;
+    const prevFilter=archiveFilterCategoryId||"all";
+    const prevItem=itemSelect.value||"";
+    filter.innerHTML="";
+    filter.add(new Option("すべて","all"));
+    filter.add(new Option("カテゴリーなし","none"));
+    for(const cat of sortedArchiveLocalCategories()) filter.add(new Option(cat.name,cat.id));
+    filter.value=[...filter.options].some(o=>o.value===prevFilter)?prevFilter:"all";
+    archiveFilterCategoryId=filter.value;
+
+    itemSelect.innerHTML="";
+    itemSelect.add(new Option("カテゴリーなし",""));
+    for(const cat of sortedArchiveLocalCategories()) itemSelect.add(new Option(cat.name,cat.id));
+    if([...itemSelect.options].some(o=>o.value===prevItem)) itemSelect.value=prevItem;
+  }
+
+  function renderArchiveLocalGrid(){
+    const grid=$("archiveGrid");
+    if(!grid) return;
+    let items=[...(archiveLocalState.items||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+    if(archiveFilterCategoryId==="none") items=items.filter(x=>!archiveLocalCategoryById(x.categoryId));
+    else if(archiveFilterCategoryId!=="all") items=items.filter(x=>x.categoryId===archiveFilterCategoryId);
+
+    $("archiveCount").textContent=items.length?`${items.length}件`:"";
+    grid.innerHTML="";
+    if(!items.length){
+      const div=document.createElement("div");
+      div.className="archive-empty";
+      div.innerHTML='<div><strong>まだ作品はありません</strong>左上の＋から追加できます。</div>';
+      grid.appendChild(div);
+      return;
+    }
+
+    for(const item of items){
+      const btn=document.createElement("button");
+      btn.type="button";
+      btn.className="archive-item";
+      const cover=document.createElement("div");
+      cover.className="archive-cover";
+      if(item.imageData){
+        const img=document.createElement("img"); img.src=item.imageData; img.alt=""; cover.appendChild(img);
+      }else cover.textContent="NO IMAGE";
+      const title=document.createElement("div"); title.className="archive-item-title"; title.textContent=item.title;
+      const rating=document.createElement("div"); rating.className="archive-item-rating"; rating.textContent=item.rating?"★".repeat(item.rating)+"☆".repeat(3-item.rating):"";
+      const category=document.createElement("div"); category.className="archive-item-category"; category.textContent=archiveLocalCategoryById(item.categoryId)?.name||"カテゴリーなし";
+      btn.append(cover,title,rating,category);
+      btn.addEventListener("click",()=>openArchiveLocalItemForm(item.id));
+      grid.appendChild(btn);
+    }
+  }
+
+  function renderArchiveLocalCategoryManager(){
+    const list=$("archiveCategoryList");
+    if(!list) return;
+    list.innerHTML="";
+    const cats=sortedArchiveLocalCategories();
+    if(!cats.length){
+      const p=document.createElement("div"); p.className="help"; p.textContent="カテゴリーはまだありません。"; list.appendChild(p); return;
+    }
+    cats.forEach((cat,index)=>{
+      const row=document.createElement("div"); row.className="manage-item";
+      const input=document.createElement("input"); input.className="archive-manage-name"; input.value=cat.name; input.maxLength=30;
+      input.addEventListener("change",async()=>{
+        const value=input.value.trim();
+        if(!value){input.value=cat.name;return;}
+        cat.name=value; await saveArchiveLocalState(); renderArchiveLocal();
+      });
+      const actions=document.createElement("div"); actions.className="manage-actions";
+      const up=document.createElement("button"); up.type="button"; up.className="small-btn"; up.textContent="↑"; up.disabled=index===0; up.addEventListener("click",()=>moveArchiveLocalCategory(cat.id,-1));
+      const down=document.createElement("button"); down.type="button"; down.className="small-btn"; down.textContent="↓"; down.disabled=index===cats.length-1; down.addEventListener("click",()=>moveArchiveLocalCategory(cat.id,1));
+      const del=document.createElement("button"); del.type="button"; del.className="small-btn danger"; del.textContent="削除"; del.addEventListener("click",()=>deleteArchiveLocalCategory(cat.id));
+      actions.append(up,down,del); row.append(input,actions); list.appendChild(row);
+    });
+  }
+
+  function renderArchiveLocal(){
+    renderArchiveLocalCategoryOptions();
+    renderArchiveLocalGrid();
+    renderArchiveLocalCategoryManager();
+  }
+
+  function setArchiveLocalRating(value){
+    archiveCurrentRating=Math.max(0,Math.min(3,Number(value)||0));
+    document.querySelectorAll(".archive-star-btn").forEach(btn=>{
+      btn.classList.toggle("on",Number(btn.dataset.archiveRating)<=archiveCurrentRating);
+    });
+  }
+
+  function renderArchiveLocalImagePreview(){
+    const box=$("archiveItemImagePreview"),img=$("archiveItemImagePreviewImg"),remove=$("archiveRemoveImageBtn");
+    if(archiveCurrentImageData){
+      img.src=archiveCurrentImageData; box.classList.add("has-image"); remove.hidden=false;
+    }else{
+      img.removeAttribute("src"); box.classList.remove("has-image"); remove.hidden=true;
+    }
+  }
+
+  function openArchiveLocalItemForm(id=null){
+    const item=id?(archiveLocalState.items||[]).find(x=>x.id===id):null;
+    $("archiveItemForm").reset();
+    renderArchiveLocalCategoryOptions();
+    if(item){
+      $("archiveItemFormTitle").textContent="作品を編集";
+      $("archiveItemId").value=item.id;
+      $("archiveItemTitle").value=item.title;
+      $("archiveItemCategory").value=archiveLocalCategoryById(item.categoryId)?item.categoryId:"";
+      $("archiveItemComment").value=item.comment||"";
+      archiveCurrentImageData=item.imageData||null;
+      setArchiveLocalRating(item.rating||0);
+      $("archiveNewItemActions").hidden=true;
+      $("archiveEditItemActions").hidden=false;
+    }else{
+      $("archiveItemFormTitle").textContent="作品を追加";
+      $("archiveItemId").value="";
+      $("archiveItemTitle").value="";
+      $("archiveItemCategory").value="";
+      $("archiveItemComment").value="";
+      archiveCurrentImageData=null;
+      setArchiveLocalRating(0);
+      $("archiveNewItemActions").hidden=false;
+      $("archiveEditItemActions").hidden=true;
+    }
+    renderArchiveLocalImagePreview();
+    openOverlay("archiveItemOverlay");
+    setTimeout(()=>$("archiveItemTitle").focus(),100);
+  }
+
+  async function submitArchiveLocalItem(e){
+    e.preventDefault();
+    const title=$("archiveItemTitle").value.trim();
+    if(!title) return;
+    const id=$("archiveItemId").value;
+    const categoryId=$("archiveItemCategory").value||null;
+    const comment=$("archiveItemComment").value;
+    const now=new Date().toISOString();
+    if(id){
+      const item=(archiveLocalState.items||[]).find(x=>x.id===id); if(!item) return;
+      item.title=title; item.categoryId=categoryId; item.rating=archiveCurrentRating; item.comment=comment; item.imageData=archiveCurrentImageData; item.updatedAt=now;
+    }else{
+      archiveLocalState.items.push({id:uid("archive"),title,categoryId,rating:archiveCurrentRating,comment,imageData:archiveCurrentImageData,createdAt:now,updatedAt:now});
+    }
+    await saveArchiveLocalState();
+    closeOverlay("archiveItemOverlay");
+    renderArchiveLocal();
+  }
+
+  async function deleteArchiveLocalItem(){
+    const id=$("archiveItemId").value; if(!id) return;
+    const item=(archiveLocalState.items||[]).find(x=>x.id===id); if(!item) return;
+    if(!confirm(`「${item.title}」を削除しますか？`)) return;
+    archiveLocalState.items=archiveLocalState.items.filter(x=>x.id!==id);
+    await saveArchiveLocalState(); closeOverlay("archiveItemOverlay"); renderArchiveLocal();
+  }
+
+  async function moveArchiveLocalCategory(id,delta){
+    const cats=sortedArchiveLocalCategories(); const index=cats.findIndex(c=>c.id===id),next=index+delta;
+    if(index<0||next<0||next>=cats.length) return;
+    [cats[index],cats[next]]=[cats[next],cats[index]]; cats.forEach((c,i)=>c.sortOrder=i); archiveLocalState.categories=cats;
+    await saveArchiveLocalState(); renderArchiveLocal();
+  }
+
+  async function deleteArchiveLocalCategory(id){
+    const cat=archiveLocalCategoryById(id); if(!cat) return;
+    if(!confirm(`カテゴリー「${cat.name}」を削除しますか？\n作品は削除されず、カテゴリーなしになります。`)) return;
+    archiveLocalState.categories=archiveLocalState.categories.filter(c=>c.id!==id);
+    archiveLocalState.items.forEach(item=>{if(item.categoryId===id)item.categoryId=null;});
+    sortedArchiveLocalCategories().forEach((c,i)=>c.sortOrder=i);
+    if(archiveFilterCategoryId===id) archiveFilterCategoryId="all";
+    await saveArchiveLocalState(); renderArchiveLocal();
+  }
+
+  async function addArchiveLocalCategory(){
+    const input=$("archiveNewCategoryName"),name=input.value.trim(); if(!name) return;
+    archiveLocalState.categories.push({id:uid("archivecat"),name,sortOrder:archiveLocalState.categories.length});
+    input.value=""; await saveArchiveLocalState(); renderArchiveLocal();
+  }
+
+  async function prepareArchiveLocalScreen(){
+    try{ await ensureArchiveLocalLoaded(); renderArchiveLocal(); }
+    catch(err){ console.error(err); alert("ARCHIVEの読み込みに失敗しました"); }
+  }
+
+
   function showScreen(name){
     if(name!=="home" && reorderMode) exitReorderMode();
     const home = name==="home";
     const calendar = name==="calendar";
     const wants = name==="wants";
+    const archive = name==="archive";
     if(!home) stopStampAreaBackgroundSlideshow();
 
     $("homeScreen").classList.toggle("active",home);
     $("calendarScreen").classList.toggle("active",calendar);
     $("wantsScreen").classList.toggle("active",wants);
+    $("archiveScreen").classList.toggle("active",archive);
     $("homeNav").classList.toggle("active",home);
     $("calendarNav").classList.toggle("active",calendar);
     $("wantsNav").classList.toggle("active",wants);
+    $("archiveNav").classList.toggle("active",archive);
 
     if(calendar){
       calendarCursor = firstOfMonth(parseDate(selectedDate));
       renderCalendar();
     }else if(wants){
       renderWants();
+    }else if(archive){
+      prepareArchiveLocalScreen();
     }
   }
 
@@ -3920,6 +4361,26 @@
   $("homeNav").onclick = ()=>showScreen("home");
   $("calendarNav").onclick = ()=>showScreen("calendar");
   $("wantsNav").onclick = ()=>showScreen("wants");
+  $("archiveNav").onclick = ()=>showScreen("archive");
+  $("archiveAddBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); openArchiveLocalItemForm(); };
+  $("archiveSettingsBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
+  $("archiveCategoryManageBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
+  $("archiveCategoryFilter").addEventListener("change",()=>{ archiveFilterCategoryId=$("archiveCategoryFilter").value||"all"; renderArchiveLocalGrid(); });
+  $("archiveItemForm").addEventListener("submit",e=>submitArchiveLocalItem(e).catch(console.error));
+  $("archiveDeleteItemBtn").onclick=()=>deleteArchiveLocalItem().catch(console.error);
+  $("archiveAddCategoryBtn").onclick=()=>addArchiveLocalCategory().catch(console.error);
+  $("archiveNewCategoryName").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();addArchiveLocalCategory().catch(console.error);} });
+  document.querySelectorAll(".archive-star-btn").forEach(btn=>btn.addEventListener("click",()=>setArchiveLocalRating(btn.dataset.archiveRating)));
+  $("archiveRatingClear").onclick=()=>setArchiveLocalRating(0);
+  $("archiveChooseImageBtn").onclick=()=>$("archiveItemImageInput").click();
+  $("archiveItemImageInput").addEventListener("change",async e=>{
+    const file=e.target.files?.[0];
+    if(!file) return;
+    try{ archiveCurrentImageData=await diaryImageFileToDataURL(file); renderArchiveLocalImagePreview(); }
+    catch(err){ console.error(err); alert(err.message||"画像の読み込みに失敗しました"); }
+    finally{ e.target.value=""; }
+  });
+  $("archiveRemoveImageBtn").onclick=()=>{ archiveCurrentImageData=null; renderArchiveLocalImagePreview(); };
   $("wantOpenTab").onclick = ()=>{ wantView = "open"; renderWants(); };
   $("wantDoneTab").onclick = ()=>{ wantView = "done"; renderWants(); };
   $("reorderDoneBtn").onclick = exitReorderMode;
@@ -5207,7 +5668,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.67").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.69-archive-local").catch(console.error);
       });
     }
   }
