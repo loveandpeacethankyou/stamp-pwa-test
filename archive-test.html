@@ -7,31 +7,50 @@
   <title>ARCHIVE TEST</title>
   <style>
     :root{
-      --bg:#f4f0e8; --paper:#fffdf8; --ink:#292724; --muted:#8c877f;
-      --line:#ddd6cb; --soft:#ece6dc; --shadow:0 10px 30px rgba(55,45,30,.08);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      color:var(--ink); background:var(--bg);
+      --bg:#f4f0e8;--paper:#fffdf8;--ink:#292724;--muted:#8c877f;--line:#ddd6cb;
+      --soft:#ece6dc;--danger:#9f3d3d;--accent:#a56f58;--shadow:0 10px 30px rgba(55,45,30,.08);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)
     }
-    *{box-sizing:border-box}
-    html,body{margin:0;width:100%;min-height:100%;background:var(--bg)}
+    *{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;background:var(--bg);overflow-x:hidden}
     body{min-height:100vh;-webkit-tap-highlight-color:transparent;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
-    button,select{font:inherit}
-    button{cursor:pointer;touch-action:manipulation}
+    button,input,select,textarea{font:inherit}button{cursor:pointer;touch-action:manipulation}
     .app{width:min(100%,560px);margin:0 auto;min-height:100vh;padding:calc(12px + env(safe-area-inset-top)) 16px 28px}
     .topbar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;min-height:48px;margin-bottom:10px}
     .topbar h1{margin:0;text-align:center;font-size:17px;font-weight:750;letter-spacing:.04em}
     .icon-btn{width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:var(--ink);display:grid;place-items:center;font-size:25px;line-height:1;padding:0}
     .icon-btn:active{background:var(--soft)}
-    .archive-card{background:var(--paper);border:1px solid rgba(90,75,50,.08);border-radius:24px;box-shadow:var(--shadow);padding:14px;min-height:360px}
-    .archive-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .archive-card{background:var(--paper);border:1px solid rgba(90,75,50,.08);border-radius:24px;box-shadow:var(--shadow);padding:14px;min-height:420px}
+    .archive-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
     .filter-wrap{position:relative;flex:1 1 auto;min-width:0}
     .archive-filter{width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--ink);padding:10px 36px 10px 12px;outline:none;appearance:none;font-size:13px}
     .filter-arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:12px}
     .category-btn{border:0;border-radius:13px;background:var(--soft);color:var(--ink);padding:10px 12px;font-size:12px;font-weight:700;white-space:nowrap}
-    .archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:250px}
-    .empty{grid-column:1/-1;min-height:250px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.7;padding:30px 12px}
-    .empty strong{display:block;margin-bottom:4px;color:#746f68;font-size:14px}
-    .note{margin-top:12px;text-align:center;color:#a39c93;font-size:10px}
+    .archive-count{margin:-3px 2px 10px;min-height:16px;text-align:right;color:var(--muted);font-size:11px}
+    .archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:260px}
+    .archive-item{width:100%;min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:left}
+    .archive-cover{width:100%;aspect-ratio:2/3;border-radius:11px;overflow:hidden;background:linear-gradient(145deg,#eee8de,#e2dbd0);display:grid;place-items:center;box-shadow:0 2px 8px rgba(55,45,30,.08),0 0 0 1px rgba(90,75,50,.07);color:#aaa298;font-size:10px;letter-spacing:.05em;font-weight:700}
+    .archive-title{margin-top:7px;min-height:31px;font-size:12px;line-height:1.3;font-weight:750;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
+    .archive-rating{margin-top:3px;min-height:15px;color:var(--accent);font-size:11px;letter-spacing:.05em;white-space:nowrap}
+    .archive-category{margin-top:2px;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .empty{grid-column:1/-1;min-height:280px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.7;padding:30px 12px}
+    .empty strong{display:block;margin-bottom:4px;color:#746f68;font-size:14px}.note{margin-top:12px;text-align:center;color:#a39c93;font-size:10px}
+    .overlay{position:fixed;z-index:50;inset:0;background:rgba(32,28,24,.34);display:none;align-items:flex-end;justify-content:center}.overlay.open{display:flex}
+    .sheet{width:min(100%,560px);max-height:90vh;overflow:auto;background:var(--paper);border-radius:24px 24px 0 0;padding:18px 18px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -16px 40px rgba(0,0,0,.12)}
+    .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.sheet-head h2{margin:0;font-size:20px}
+    .close-btn{width:36px;height:36px;border:0;border-radius:50%;background:var(--soft);color:var(--ink);font-size:18px}
+    .field{margin:14px 0}.field label{display:block;margin-bottom:6px;color:var(--muted);font-size:13px}
+    .field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);padding:11px 12px;outline:none}
+    .field textarea{min-height:110px;resize:vertical;line-height:1.6}
+    .rating-picker{display:flex;gap:4px;align-items:center}.star-btn{width:42px;height:42px;border:0;background:transparent;color:#c9c1b7;padding:0;font-size:30px;line-height:1}.star-btn.on{color:var(--accent)}
+    .rating-clear{border:0;background:transparent;color:var(--muted);font-size:12px;padding:8px;margin-left:4px}
+    .primary,.secondary,.danger-btn{border:0;border-radius:14px;padding:11px 14px;font-weight:750}.primary{background:var(--ink);color:#fff}.secondary{background:var(--soft);color:var(--ink)}.danger-btn{background:#f3e4e4;color:var(--danger)}.full{width:100%}
+    .form-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}.form-actions.single{grid-template-columns:1fr}
+    .manage-list{display:grid;gap:9px}.manage-item{border:1px solid var(--line);border-radius:14px;padding:10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+    .manage-name{border:0;background:transparent;color:var(--ink);padding:5px 3px;width:100%;outline:none;font-weight:700}.manage-actions{display:flex;gap:4px}
+    .small-btn{border:0;border-radius:10px;background:var(--soft);color:var(--ink);min-width:34px;height:34px;padding:0 8px;font-size:12px;font-weight:700}.small-btn.danger{background:#f3e4e4;color:var(--danger)}
+    .category-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px}.category-add-row input{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:#fff;color:var(--ink);outline:none}
+    .help{color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
+    @media (max-width:390px){.archive-grid{gap:16px 8px}.archive-card{padding:12px}}
   </style>
 </head>
 <body>
@@ -39,43 +58,73 @@
     <header class="topbar">
       <button class="icon-btn" type="button" aria-label="作品を追加" id="addBtn">＋</button>
       <h1>ARCHIVE</h1>
-      <button class="icon-btn" type="button" aria-label="カテゴリー管理" id="categoryBtn">⚙︎</button>
+      <button class="icon-btn" type="button" aria-label="カテゴリー管理" id="settingsBtn">⚙︎</button>
     </header>
-
     <section class="archive-card">
       <div class="archive-toolbar">
         <div class="filter-wrap">
-          <select class="archive-filter" id="categoryFilter" aria-label="カテゴリーで絞り込み">
-            <option value="all">すべて</option>
-          </select>
+          <select class="archive-filter" id="categoryFilter" aria-label="カテゴリーで絞り込み"></select>
           <span class="filter-arrow">▼</span>
         </div>
         <button class="category-btn" type="button" id="categoryManageBtn">カテゴリー</button>
       </div>
-
-      <div class="archive-grid" id="archiveGrid">
-        <div class="empty">
-          <div>
-            <strong>まだ作品はありません</strong>
-            次の段階で、ここに作品を登録できるようにします。
-          </div>
-        </div>
-      </div>
+      <div id="archiveCount" class="archive-count"></div>
+      <div class="archive-grid" id="archiveGrid"></div>
     </section>
-
-    <div class="note">ARCHIVE TEST v0.1 — 本体とは独立した試作ページ</div>
+    <div class="note">ARCHIVE TEST v0.2 — 本体とは独立した試作ページ</div>
   </main>
 
-  <script>
-    // Step 1: layout only.
-    // Later integration plan:
-    // item = { id, title, categoryId, rating, comment, image, createdAt, updatedAt }
-    // category = { id, name, sortOrder }
-    // This prototype intentionally does not write to the Stamp Card database.
-    const notYet = () => alert("このボタンの機能は次の段階で追加します。");
-    document.getElementById("addBtn").addEventListener("click", notYet);
-    document.getElementById("categoryBtn").addEventListener("click", notYet);
-    document.getElementById("categoryManageBtn").addEventListener("click", notYet);
-  </script>
+  <div class="overlay" id="itemOverlay">
+    <div class="sheet">
+      <div class="sheet-head"><h2 id="itemFormTitle">作品を追加</h2><button class="close-btn" type="button" data-close="itemOverlay">×</button></div>
+      <form id="itemForm">
+        <input id="itemId" type="hidden">
+        <div class="field"><label for="itemTitle">タイトル</label><input id="itemTitle" type="text" maxlength="120" placeholder="作品名を入力" required></div>
+        <div class="field"><label for="itemCategory">カテゴリー</label><select id="itemCategory"></select></div>
+        <div class="field"><label>評価</label><div class="rating-picker" id="ratingPicker"><button class="star-btn" type="button" data-rating="1" aria-label="星1">★</button><button class="star-btn" type="button" data-rating="2" aria-label="星2">★</button><button class="star-btn" type="button" data-rating="3" aria-label="星3">★</button><button class="rating-clear" type="button" id="ratingClear">未評価</button></div></div>
+        <div class="field"><label for="itemComment">コメント（任意）</label><textarea id="itemComment"></textarea></div>
+        <div id="newItemActions" class="form-actions single"><button class="primary full" type="submit">保存</button></div>
+        <div id="editItemActions" class="form-actions" hidden><button class="danger-btn full" id="deleteItemBtn" type="button">削除</button><button class="primary full" type="submit">保存</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="overlay" id="categoryOverlay">
+    <div class="sheet">
+      <div class="sheet-head"><h2>カテゴリー</h2><button class="close-btn" type="button" data-close="categoryOverlay">×</button></div>
+      <div id="categoryList" class="manage-list"></div>
+      <div class="category-add-row"><input id="newCategoryName" type="text" maxlength="30" placeholder="カテゴリー名"><button class="secondary" id="addCategoryBtn" type="button">追加</button></div>
+      <div class="help">名前変更・並べ替え・削除ができます。カテゴリーを削除しても作品自体は削除されず、「カテゴリーなし」に移動します。</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const DB_NAME="stamp-card-archive-prototype", DB_VERSION=1, STORE_NAME="kv", STATE_KEY="state";
+  const DEFAULT_STATE={schemaVersion:1,categories:[{id:"cat-manga",name:"漫画",sortOrder:0},{id:"cat-game",name:"ゲーム",sortOrder:1},{id:"cat-anime",name:"アニメ",sortOrder:2},{id:"cat-movie",name:"映画",sortOrder:3}],items:[]};
+  let state=structuredClone(DEFAULT_STATE), currentRating=0;
+  const $=id=>document.getElementById(id), uid=prefix=>prefix+"-"+crypto.randomUUID(), nowIso=()=>new Date().toISOString();
+  function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(STORE_NAME))db.createObjectStore(STORE_NAME)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+  async function loadState(){try{const db=await openDb();const value=await new Promise((resolve,reject)=>{const tx=db.transaction(STORE_NAME,"readonly"),req=tx.objectStore(STORE_NAME).get(STATE_KEY);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});if(value&&typeof value==="object")state=normalizeState(value)}catch(err){console.error(err)}}
+  async function saveState(){const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction(STORE_NAME,"readwrite");tx.objectStore(STORE_NAME).put(state,STATE_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
+  function normalizeState(raw){const categories=Array.isArray(raw.categories)?raw.categories:[],items=Array.isArray(raw.items)?raw.items:[];return{schemaVersion:1,categories:categories.filter(x=>x&&x.id&&typeof x.name==="string").map((x,i)=>({id:String(x.id),name:String(x.name).trim()||"名称なし",sortOrder:Number.isFinite(x.sortOrder)?x.sortOrder:i})).sort((a,b)=>a.sortOrder-b.sortOrder),items:items.filter(x=>x&&x.id&&typeof x.title==="string").map(x=>({id:String(x.id),title:String(x.title),categoryId:x.categoryId?String(x.categoryId):null,rating:[0,1,2,3].includes(Number(x.rating))?Number(x.rating):0,comment:typeof x.comment==="string"?x.comment:"",createdAt:x.createdAt||nowIso(),updatedAt:x.updatedAt||x.createdAt||nowIso()}))}}
+  const categoryById=id=>state.categories.find(c=>c.id===id)||null, sortedCategories=()=>[...state.categories].sort((a,b)=>a.sortOrder-b.sortOrder);
+  function renderAll(){renderCategoryOptions();renderGrid();renderCategoryManager()}
+  function renderCategoryOptions(){const filter=$("categoryFilter"),previousFilter=filter.value||"all",itemSelect=$("itemCategory"),previousItemCat=itemSelect.value||"";filter.innerHTML="";filter.add(new Option("すべて","all"));filter.add(new Option("カテゴリーなし","none"));for(const cat of sortedCategories())filter.add(new Option(cat.name,cat.id));if([...filter.options].some(o=>o.value===previousFilter))filter.value=previousFilter;itemSelect.innerHTML="";itemSelect.add(new Option("カテゴリーなし",""));for(const cat of sortedCategories())itemSelect.add(new Option(cat.name,cat.id));if([...itemSelect.options].some(o=>o.value===previousItemCat))itemSelect.value=previousItemCat}
+  function renderGrid(){const filterValue=$("categoryFilter").value||"all";let items=[...state.items].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));if(filterValue==="none")items=items.filter(x=>!categoryById(x.categoryId));else if(filterValue!=="all")items=items.filter(x=>x.categoryId===filterValue);$("archiveCount").textContent=items.length?`${items.length}件`:"";const grid=$("archiveGrid");grid.innerHTML="";if(!items.length){const div=document.createElement("div");div.className="empty";div.innerHTML='<div><strong>まだ作品はありません</strong>左上の＋から追加できます。</div>';grid.appendChild(div);return}for(const item of items){const btn=document.createElement("button");btn.type="button";btn.className="archive-item";btn.dataset.id=item.id;const cat=categoryById(item.categoryId),stars=item.rating?"★".repeat(item.rating)+"☆".repeat(3-item.rating):"";btn.innerHTML='<div class="archive-cover">NO IMAGE</div><div class="archive-title"></div><div class="archive-rating">'+stars+'</div><div class="archive-category"></div>';btn.querySelector(".archive-title").textContent=item.title;btn.querySelector(".archive-category").textContent=cat?cat.name:"カテゴリーなし";btn.addEventListener("click",()=>openItemForm(item.id));grid.appendChild(btn)}}
+  function setRating(value){currentRating=Math.max(0,Math.min(3,Number(value)||0));document.querySelectorAll(".star-btn").forEach(btn=>btn.classList.toggle("on",Number(btn.dataset.rating)<=currentRating))}
+  function openItemForm(id=null){const item=id?state.items.find(x=>x.id===id):null;$("itemForm").reset();renderCategoryOptions();if(item){$("itemFormTitle").textContent="作品を編集";$("itemId").value=item.id;$("itemTitle").value=item.title;$("itemCategory").value=categoryById(item.categoryId)?item.categoryId:"";$("itemComment").value=item.comment||"";setRating(item.rating||0);$("newItemActions").hidden=true;$("editItemActions").hidden=false}else{$("itemFormTitle").textContent="作品を追加";$("itemId").value="";$("itemTitle").value="";$("itemCategory").value="";$("itemComment").value="";setRating(0);$("newItemActions").hidden=false;$("editItemActions").hidden=true}openOverlay("itemOverlay");setTimeout(()=>$("itemTitle").focus(),100)}
+  const openOverlay=id=>$(id).classList.add("open"), closeOverlay=id=>$(id).classList.remove("open");
+  async function submitItem(ev){ev.preventDefault();const title=$("itemTitle").value.trim();if(!title)return;const id=$("itemId").value,categoryId=$("itemCategory").value||null,comment=$("itemComment").value;if(id){const item=state.items.find(x=>x.id===id);if(!item)return;item.title=title;item.categoryId=categoryId;item.rating=currentRating;item.comment=comment;item.updatedAt=nowIso()}else state.items.push({id:uid("item"),title,categoryId,rating:currentRating,comment,createdAt:nowIso(),updatedAt:nowIso()});await saveState();closeOverlay("itemOverlay");renderAll()}
+  async function deleteCurrentItem(){const id=$("itemId").value;if(!id)return;const item=state.items.find(x=>x.id===id);if(!item)return;if(!confirm(`「${item.title}」を削除しますか？`))return;state.items=state.items.filter(x=>x.id!==id);await saveState();closeOverlay("itemOverlay");renderAll()}
+  function renderCategoryManager(){const list=$("categoryList");list.innerHTML="";const cats=sortedCategories();if(!cats.length){const p=document.createElement("div");p.className="help";p.textContent="カテゴリーはまだありません。";list.appendChild(p);return}cats.forEach((cat,index)=>{const row=document.createElement("div");row.className="manage-item";const input=document.createElement("input");input.className="manage-name";input.value=cat.name;input.maxLength=30;input.addEventListener("change",async()=>{const value=input.value.trim();if(!value){input.value=cat.name;return}cat.name=value;await saveState();renderAll()});const actions=document.createElement("div");actions.className="manage-actions";const up=document.createElement("button");up.type="button";up.className="small-btn";up.textContent="↑";up.disabled=index===0;up.addEventListener("click",()=>moveCategory(cat.id,-1));const down=document.createElement("button");down.type="button";down.className="small-btn";down.textContent="↓";down.disabled=index===cats.length-1;down.addEventListener("click",()=>moveCategory(cat.id,1));const del=document.createElement("button");del.type="button";del.className="small-btn danger";del.textContent="削除";del.addEventListener("click",()=>deleteCategory(cat.id));actions.append(up,down,del);row.append(input,actions);list.appendChild(row)})}
+  async function moveCategory(id,delta){const cats=sortedCategories(),index=cats.findIndex(c=>c.id===id),next=index+delta;if(index<0||next<0||next>=cats.length)return;[cats[index],cats[next]]=[cats[next],cats[index]];cats.forEach((c,i)=>c.sortOrder=i);state.categories=cats;await saveState();renderAll()}
+  async function deleteCategory(id){const cat=categoryById(id);if(!cat)return;if(!confirm(`カテゴリー「${cat.name}」を削除しますか？\n作品は削除されず、カテゴリーなしになります。`))return;state.categories=state.categories.filter(c=>c.id!==id);state.items.forEach(item=>{if(item.categoryId===id)item.categoryId=null});sortedCategories().forEach((c,i)=>c.sortOrder=i);await saveState();renderAll()}
+  async function addCategory(){const input=$("newCategoryName"),name=input.value.trim();if(!name)return;state.categories.push({id:uid("cat"),name,sortOrder:state.categories.length});input.value="";await saveState();renderAll()}
+  document.querySelectorAll("[data-close]").forEach(btn=>btn.addEventListener("click",()=>closeOverlay(btn.dataset.close)));document.querySelectorAll(".overlay").forEach(overlay=>overlay.addEventListener("click",ev=>{if(ev.target===overlay)closeOverlay(overlay.id)}));
+  $("addBtn").addEventListener("click",()=>openItemForm());$("settingsBtn").addEventListener("click",()=>openOverlay("categoryOverlay"));$("categoryManageBtn").addEventListener("click",()=>openOverlay("categoryOverlay"));$("categoryFilter").addEventListener("change",renderGrid);$("itemForm").addEventListener("submit",submitItem);$("deleteItemBtn").addEventListener("click",deleteCurrentItem);$("addCategoryBtn").addEventListener("click",addCategory);$("newCategoryName").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();addCategory()}});document.querySelectorAll(".star-btn").forEach(btn=>btn.addEventListener("click",()=>setRating(btn.dataset.rating)));$("ratingClear").addEventListener("click",()=>setRating(0));
+  (async()=>{await loadState();renderAll()})();
+})();
+</script>
 </body>
 </html>
