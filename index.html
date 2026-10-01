@@ -1199,8 +1199,15 @@
       padding:14px;
       min-height:420px;
     }
-    .archive-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
-    .archive-filter-wrap{position:relative;flex:1 1 auto;min-width:0}
+    .archive-toolbar{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 102px auto;
+      align-items:center;
+      gap:8px;
+      margin-bottom:12px;
+    }
+    .archive-filter-wrap,.archive-sort-wrap{position:relative;min-width:0}
+    .archive-sort{padding-left:10px;padding-right:30px;font-size:12px}
     .archive-filter{
       width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--ink);
       padding:10px 36px 10px 12px;outline:none;appearance:none;font-size:13px;
@@ -1390,6 +1397,14 @@
           <select id="archiveCategoryFilter" class="archive-filter" aria-label="カテゴリーで絞り込み"></select>
           <span class="archive-filter-arrow">▼</span>
         </div>
+        <div class="archive-sort-wrap">
+          <select id="archiveSort" class="archive-filter archive-sort" aria-label="並び順">
+            <option value="date-desc">新しい順</option>
+            <option value="date-asc">古い順</option>
+            <option value="rating-desc">評価順</option>
+          </select>
+          <span class="archive-filter-arrow">▼</span>
+        </div>
         <button id="archiveCategoryManageBtn" class="archive-category-btn" type="button">カテゴリー</button>
       </div>
       <div id="archiveCount" class="archive-count"></div>
@@ -1539,7 +1554,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.79 loop title badge + UI sounds</div>
+    <div class="version">Stamp Card v1.9.80 loop title badge + UI sounds</div>
   </div>
 </div>
 
@@ -3495,6 +3510,7 @@
   ];
 
   let archiveFilterCategoryId = "all";
+  let archiveSortMode = "date-desc";
   let archiveCurrentRating = 0;
   let archiveCurrentImageData = null;
   let archiveCurrentImageCloudPath = null;
@@ -3638,7 +3654,35 @@
   function renderArchiveLocalGrid(){
     const grid=$("archiveGrid");
     if(!grid) return;
-    let items=[...(archiveState().items||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+    let items=[...(archiveState().items||[])];
+    const dateKey=item=>/^\d{4}-\d{2}-\d{2}$/.test(String(item.completedDate||""))?String(item.completedDate):"";
+    if(archiveSortMode==="date-asc"){
+      items.sort((a,b)=>{
+        const ad=dateKey(a),bd=dateKey(b);
+        if(!ad&&!bd) return String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+        if(!ad) return 1;
+        if(!bd) return -1;
+        return ad.localeCompare(bd) || String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+      });
+    }else if(archiveSortMode==="rating-desc"){
+      items.sort((a,b)=>{
+        const ratingDiff=Number(b.rating||0)-Number(a.rating||0);
+        if(ratingDiff) return ratingDiff;
+        const ad=dateKey(a),bd=dateKey(b);
+        if(!ad&&!bd) return String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+        if(!ad) return 1;
+        if(!bd) return -1;
+        return bd.localeCompare(ad) || String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+      });
+    }else{
+      items.sort((a,b)=>{
+        const ad=dateKey(a),bd=dateKey(b);
+        if(!ad&&!bd) return String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+        if(!ad) return 1;
+        if(!bd) return -1;
+        return bd.localeCompare(ad) || String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+      });
+    }
     if(archiveFilterCategoryId==="none") items=items.filter(x=>!archiveLocalCategoryById(x.categoryId));
     else if(archiveFilterCategoryId!=="all") items=items.filter(x=>x.categoryId===archiveFilterCategoryId);
 
@@ -3718,6 +3762,8 @@
 
   function renderArchiveLocal(){
     renderArchiveLocalCategoryOptions();
+    const sort=$("archiveSort");
+    if(sort) sort.value=archiveSortMode;
     renderArchiveLocalGrid();
     renderArchiveLocalCategoryManager();
   }
@@ -4535,6 +4581,7 @@
   $("archiveSettingsBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
   $("archiveCategoryManageBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
   $("archiveCategoryFilter").addEventListener("change",()=>{ archiveFilterCategoryId=$("archiveCategoryFilter").value||"all"; renderArchiveLocalGrid(); });
+  $("archiveSort").addEventListener("change",()=>{ archiveSortMode=$("archiveSort").value||"date-desc"; renderArchiveLocalGrid(); });
   $("archiveItemForm").addEventListener("submit",e=>submitArchiveLocalItem(e).catch(console.error));
   $("archiveDeleteItemBtn").onclick=()=>deleteArchiveLocalItem().catch(console.error);
   $("archiveAddCategoryBtn").onclick=()=>addArchiveLocalCategory().catch(console.error);
