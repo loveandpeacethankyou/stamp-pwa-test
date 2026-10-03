@@ -919,6 +919,20 @@
       color:var(--ink);
       outline:none;
     }
+    #archiveItemComment{
+      display:block;
+      width:100%;
+      min-height:130px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#fff;
+      padding:11px 12px;
+      color:var(--ink);
+      outline:none;
+      resize:vertical;
+      line-height:1.6;
+      box-sizing:border-box;
+    }
     .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .chips{display:flex;gap:7px;flex-wrap:wrap}
     .chip input{display:none}
@@ -1586,7 +1600,7 @@
       </div>
       <div class="field">
         <label for="archiveItemComment">コメント（任意）</label>
-        <textarea id="archiveItemComment" style="min-height:110px;resize:vertical;line-height:1.6"></textarea>
+        <textarea id="archiveItemComment"></textarea>
       </div>
       <div id="archiveNewItemActions" class="archive-form-actions single">
         <button class="primary full" type="submit">保存</button>
@@ -1668,7 +1682,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.84 loop title badge + UI sounds</div>
+    <div class="version">Stamp Card v1.9.85 loop title badge + UI sounds</div>
   </div>
 </div>
 
