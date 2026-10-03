@@ -1293,21 +1293,84 @@
     .stock-status-filter{font-size:12px}
     .stock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:260px}
     .stock-item{width:100%;min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:left}
-    .stock-item .archive-cover{transition:opacity .28s ease,filter .28s ease}
-    .stock-item.stock-unstarted .archive-cover{opacity:.68;filter:saturate(.72) brightness(.97)}
-    .stock-item.stock-progress .archive-cover{opacity:1;filter:none}
-    .stock-item.stock-progress.stock-just-started .archive-cover{animation:stockActivate .45s ease-out both}
-    @keyframes stockActivate{from{opacity:.68;filter:saturate(.72) brightness(.97)}to{opacity:1;filter:none}}
-    .stock-progress-strip{
-      position:absolute;left:0;right:0;bottom:0;height:21px;overflow:hidden;
-      display:flex;align-items:center;background:rgba(39,34,29,.78);color:#fff;
-      font:700 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
-      border-top:1px solid rgba(255,255,255,.22);pointer-events:none;
+    .stock-item .archive-cover{transition:opacity .32s ease,filter .32s ease}
+    .stock-item.stock-unstarted .archive-cover{
+      opacity:.46;
+      filter:saturate(.42) brightness(1.08);
     }
-    .stock-progress-track{display:inline-block;white-space:nowrap;min-width:max-content;padding-left:0;animation:stockMarquee 8s linear infinite}
-    .stock-progress-track span{padding-right:18px}
-    @keyframes stockMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-    @media (prefers-reduced-motion:reduce){.stock-progress-track,.stock-item.stock-progress.stock-just-started .archive-cover{animation:none}}
+    .stock-item.stock-progress .archive-cover{opacity:1;filter:none}
+    .stock-item.stock-progress.stock-just-started .archive-cover{animation:stockActivate .48s ease-out both}
+    @keyframes stockActivate{
+      from{opacity:.46;filter:saturate(.42) brightness(1.08)}
+      to{opacity:1;filter:none}
+    }
+    .stock-progress-strip{
+      position:absolute;
+      left:0;right:0;top:0;
+      height:24px;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 8px;
+      background:linear-gradient(90deg,rgba(27,166,190,.94),rgba(61,132,207,.92));
+      color:#fff;
+      border-bottom:1px solid rgba(255,255,255,.42);
+      box-shadow:0 1px 5px rgba(21,109,139,.22);
+      pointer-events:none;
+      z-index:2;
+    }
+    .stock-progress-label{
+      position:relative;
+      z-index:2;
+      font-size:10px;
+      line-height:1;
+      font-weight:800;
+      letter-spacing:.12em;
+      text-shadow:0 1px 2px rgba(0,0,0,.16);
+      white-space:nowrap;
+    }
+    .stock-loading-dots{
+      position:relative;
+      z-index:2;
+      display:flex;
+      align-items:center;
+      gap:3px;
+    }
+    .stock-loading-dots i{
+      display:block;
+      width:4px;
+      height:4px;
+      border-radius:50%;
+      background:rgba(255,255,255,.95);
+      animation:stockDot 1.05s ease-in-out infinite;
+    }
+    .stock-loading-dots i:nth-child(2){animation-delay:.14s}
+    .stock-loading-dots i:nth-child(3){animation-delay:.28s}
+    .stock-progress-line{
+      position:absolute;
+      left:-45%;
+      bottom:0;
+      width:42%;
+      height:2px;
+      border-radius:999px;
+      background:rgba(255,255,255,.95);
+      box-shadow:0 0 6px rgba(255,255,255,.7);
+      animation:stockLoadingLine 1.9s linear infinite;
+    }
+    @keyframes stockDot{
+      0%,60%,100%{opacity:.32;transform:translateY(0)}
+      30%{opacity:1;transform:translateY(-2px)}
+    }
+    @keyframes stockLoadingLine{
+      from{transform:translateX(0)}
+      to{transform:translateX(350%)}
+    }
+    @media (prefers-reduced-motion:reduce){
+      .stock-loading-dots i,.stock-progress-line,.stock-item.stock-progress.stock-just-started .archive-cover{animation:none}
+      .stock-loading-dots i{opacity:.8}
+      .stock-progress-line{left:58%;width:32%}
+    }
     .stock-item-title{margin-top:7px;font-size:12px;line-height:1.3;font-weight:750;word-break:break-word}
     .stock-item-category{margin-top:4px;color:var(--muted);font-size:10px;line-height:1.25}
     .stock-empty{grid-column:1/-1;min-height:210px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:12px;line-height:1.8}
@@ -1682,7 +1745,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.87 loop title badge + UI sounds</div>
+    <div class="version">Stamp Card v1.9.88 loop title badge + UI sounds</div>
   </div>
 </div>
 
@@ -3719,10 +3782,18 @@
         const img=document.createElement("img"); img.src=item.image.data; img.alt=""; cover.appendChild(img);
       }else cover.textContent="NO IMAGE";
       if(item.status==="progress"){
-        const strip=document.createElement("div"); strip.className="stock-progress-strip";
-        const track=document.createElement("div"); track.className="stock-progress-track";
-        track.innerHTML='<span>▶ IN PROGRESS　▶ IN PROGRESS　</span><span>▶ IN PROGRESS　▶ IN PROGRESS　</span>';
-        strip.appendChild(track); cover.appendChild(strip);
+        const strip=document.createElement("div");
+        strip.className="stock-progress-strip";
+        const label=document.createElement("span");
+        label.className="stock-progress-label";
+        label.textContent="進行中";
+        const dots=document.createElement("span");
+        dots.className="stock-loading-dots";
+        dots.innerHTML="<i></i><i></i><i></i>";
+        const line=document.createElement("span");
+        line.className="stock-progress-line";
+        strip.append(label,dots,line);
+        cover.appendChild(strip);
       }
       const title=document.createElement("div"); title.className="stock-item-title"; title.textContent=item.title;
       const category=document.createElement("div"); category.className="stock-item-category"; category.textContent=archiveLocalCategoryById(item.categoryId)?.name||"カテゴリーなし";
