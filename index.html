@@ -183,7 +183,7 @@
       -webkit-user-select:none;
       user-select:none;
       display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
+      grid-template-columns:repeat(4,minmax(0,1fr));
       gap:18px 10px;
       justify-items:center;
       min-height:0;
@@ -1272,6 +1272,38 @@
     .archive-cover-actions{display:grid;gap:8px}
     .archive-cover-actions .secondary,.archive-cover-actions .danger-btn{width:100%}
     .archive-image-note{color:var(--muted);font-size:10px;line-height:1.45}
+
+    /* STOCK */
+    .stock-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;margin-bottom:12px}
+    .stock-filter-wrap{position:relative;min-width:0}
+    .stock-status-filter{font-size:12px}
+    .stock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 11px;align-items:start;min-height:260px}
+    .stock-item{width:100%;min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:left}
+    .stock-item .archive-cover{transition:opacity .28s ease,filter .28s ease}
+    .stock-item.stock-unstarted .archive-cover{opacity:.68;filter:saturate(.72) brightness(.97)}
+    .stock-item.stock-progress .archive-cover{opacity:1;filter:none}
+    .stock-item.stock-progress.stock-just-started .archive-cover{animation:stockActivate .45s ease-out both}
+    @keyframes stockActivate{from{opacity:.68;filter:saturate(.72) brightness(.97)}to{opacity:1;filter:none}}
+    .stock-progress-strip{
+      position:absolute;left:0;right:0;bottom:0;height:21px;overflow:hidden;
+      display:flex;align-items:center;background:rgba(39,34,29,.78);color:#fff;
+      font:700 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
+      border-top:1px solid rgba(255,255,255,.22);pointer-events:none;
+    }
+    .stock-progress-track{display:inline-block;white-space:nowrap;min-width:max-content;padding-left:0;animation:stockMarquee 8s linear infinite}
+    .stock-progress-track span{padding-right:18px}
+    @keyframes stockMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+    @media (prefers-reduced-motion:reduce){.stock-progress-track,.stock-item.stock-progress.stock-just-started .archive-cover{animation:none}}
+    .stock-item-title{margin-top:7px;font-size:12px;line-height:1.3;font-weight:750;word-break:break-word}
+    .stock-item-category{margin-top:4px;color:var(--muted);font-size:10px;line-height:1.25}
+    .stock-empty{grid-column:1/-1;min-height:210px;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:12px;line-height:1.8}
+    .stock-empty strong{display:block;color:var(--ink);font-size:14px;margin-bottom:3px}
+    .stock-count{margin:-3px 2px 10px;min-height:16px;text-align:right;color:var(--muted);font-size:11px}
+    .stock-status-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .stock-status-choice{position:relative}
+    .stock-status-choice input{position:absolute;opacity:0;pointer-events:none}
+    .stock-status-choice span{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--muted);font-size:13px;font-weight:700}
+    .stock-status-choice input:checked + span{border-color:rgba(165,111,88,.42);background:#f6ede7;color:#9d634d}
     @media (max-width:390px){
       .archive-grid{gap:16px 8px}
       .archive-card{padding:12px}
@@ -1385,6 +1417,32 @@
     </div>
   </section>
 
+  <section id="stockScreen" class="screen">
+    <div class="topbar">
+      <button id="stockAddBtn" class="icon-btn" type="button" aria-label="積みに追加">＋</button>
+      <h1>STOCK</h1>
+      <button id="stockSettingsBtn" class="icon-btn" type="button" aria-label="カテゴリー管理">⚙︎</button>
+    </div>
+    <div class="archive-card">
+      <div class="stock-toolbar">
+        <div class="stock-filter-wrap">
+          <select id="stockCategoryFilter" class="archive-filter" aria-label="カテゴリーで絞り込み"></select>
+          <span class="archive-filter-arrow">▼</span>
+        </div>
+        <div class="stock-filter-wrap">
+          <select id="stockStatusFilter" class="archive-filter stock-status-filter" aria-label="状態で絞り込み">
+            <option value="all">すべて</option>
+            <option value="progress">進行中</option>
+            <option value="unstarted">未着手</option>
+          </select>
+          <span class="archive-filter-arrow">▼</span>
+        </div>
+      </div>
+      <div id="stockCount" class="stock-count"></div>
+      <div id="stockGrid" class="stock-grid"></div>
+    </div>
+  </section>
+
   <section id="archiveScreen" class="screen">
     <div class="topbar">
       <button id="archiveAddBtn" class="icon-btn" type="button" aria-label="作品を追加">＋</button>
@@ -1416,10 +1474,66 @@
 <nav class="bottom-nav">
   <button id="homeNav" class="nav-btn active">今日</button>
   <button id="wantsNav" class="nav-btn"><span>タスク</span><span id="taskBadge" class="task-badge" hidden></span></button>
+  <button id="stockNav" class="nav-btn">積み</button>
   <button id="archiveNav" class="nav-btn">アーカイブ</button>
 </nav>
 
 
+
+<div id="stockItemOverlay" class="overlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="stockItemFormTitle">積みに追加</h2>
+      <button class="close-btn" type="button" data-close="stockItemOverlay">×</button>
+    </div>
+    <form id="stockItemForm">
+      <input id="stockItemId" type="hidden">
+      <div class="field">
+        <label for="stockItemTitle">タイトル</label>
+        <input id="stockItemTitle" type="text" maxlength="120" placeholder="作品名を入力" required>
+      </div>
+      <div class="field">
+        <label>画像（任意）</label>
+        <input id="stockItemImageInput" type="file" accept="image/*" hidden>
+        <div class="archive-cover-editor">
+          <div id="stockItemImagePreview" class="archive-cover-preview">
+            <img id="stockItemImagePreviewImg" alt=""><span>NO IMAGE</span>
+          </div>
+          <div class="archive-cover-actions">
+            <button id="stockChooseImageBtn" class="secondary" type="button">画像を選ぶ</button>
+            <button id="stockRemoveImageBtn" class="danger-btn" type="button" hidden>画像を外す</button>
+            <div class="archive-image-note">大きい画像は自動で縮小します。</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="stockItemCategory">カテゴリー</label>
+        <select id="stockItemCategory"></select>
+      </div>
+      <div class="field">
+        <label>状態</label>
+        <div class="stock-status-row">
+          <label class="stock-status-choice"><input type="radio" name="stockStatus" value="unstarted" checked><span>未着手</span></label>
+          <label class="stock-status-choice"><input type="radio" name="stockStatus" value="progress"><span>進行中</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="stockItemMemo">メモ（任意）</label>
+        <textarea id="stockItemMemo" style="min-height:100px;resize:vertical;line-height:1.6"></textarea>
+      </div>
+      <div id="stockNewItemActions" class="archive-form-actions single">
+        <button class="primary full" type="submit">保存</button>
+      </div>
+      <div id="stockArchiveActions" class="archive-form-actions single" hidden>
+        <button class="secondary full" id="stockToArchiveBtn" type="button">ARCHIVEへ</button>
+      </div>
+      <div id="stockEditItemActions" class="archive-form-actions" hidden>
+        <button class="danger-btn full" id="stockDeleteItemBtn" type="button">削除</button>
+        <button class="primary full" type="submit">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <div id="archiveItemOverlay" class="overlay">
   <div class="sheet">
@@ -1554,7 +1668,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.80 loop title badge + UI sounds</div>
+    <div class="version">Stamp Card v1.9.83 loop title badge + UI sounds</div>
   </div>
 </div>
 
@@ -1747,7 +1861,7 @@
 
   function initialState(){
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       quests: [],
       styles: [],
       completions: [],
@@ -1755,6 +1869,7 @@
       diaries: {},
       diaryImages: {},
       wants: [],
+      stock: {items:[]},
       archive: {
         categories:[
           {id:"cat-manga",name:"漫画",sortOrder:0},
@@ -1780,6 +1895,7 @@
       diaries:next.diaries && typeof next.diaries==="object" ? next.diaries : {},
       diaryImages:next.diaryImages && typeof next.diaryImages==="object" ? next.diaryImages : {},
       archive:normalizeArchiveState(next.archive),
+      stock:normalizeStockState(next.stock),
       wants:Array.isArray(next.wants) ? next.wants.map((item,index)=>({
         id:item?.id || uid("want"),
         text:String(item?.text || ""),
@@ -3497,6 +3613,197 @@
 
 
   // ===== ARCHIVE (integrated: backup + cloud sync + Storage) =====
+  let stockFilterCategoryId = "all";
+  let stockFilterStatus = "all";
+  let stockCurrentImageData = null;
+  let stockCurrentImageCloudPath = null;
+  let stockCurrentImageId = null;
+  let stockJustStartedId = null;
+
+  function normalizeStockState(raw){
+    const items=Array.isArray(raw?.items)?raw.items:[];
+    return {
+      items:items.filter(x=>x&&x.id&&typeof x.title==="string").map(x=>{
+        let image=null;
+        if(x.image && typeof x.image==="object"){
+          image={
+            id:x.image.id||uid("stockimg"),
+            data:typeof x.image.data==="string"?x.image.data:null,
+            cloudPath:typeof x.image.cloudPath==="string"?x.image.cloudPath:null
+          };
+        }
+        const status=x.status==="progress"?"progress":"unstarted";
+        return {
+          id:String(x.id),
+          title:String(x.title),
+          categoryId:x.categoryId?String(x.categoryId):null,
+          status,
+          memo:typeof x.memo==="string"?x.memo:"",
+          image,
+          createdAt:x.createdAt||new Date().toISOString(),
+          updatedAt:x.updatedAt||x.createdAt||new Date().toISOString(),
+          startedAt:status==="progress"?(x.startedAt||x.updatedAt||x.createdAt||new Date().toISOString()):null
+        };
+      })
+    };
+  }
+
+  function stockState(){
+    if(!state.stock||typeof state.stock!=="object") state.stock=normalizeStockState(null);
+    return state.stock;
+  }
+
+  function renderStockCategoryOptions(){
+    const filter=$("stockCategoryFilter"), select=$("stockItemCategory");
+    if(!filter||!select) return;
+    const cats=sortedArchiveLocalCategories();
+    const prevFilter=stockFilterCategoryId||"all";
+    const prevSelect=select.value||"";
+    filter.innerHTML="";
+    filter.add(new Option("すべて","all"));
+    filter.add(new Option("カテゴリーなし","none"));
+    cats.forEach(cat=>filter.add(new Option(cat.name,cat.id)));
+    filter.value=[...filter.options].some(o=>o.value===prevFilter)?prevFilter:"all";
+    stockFilterCategoryId=filter.value;
+    select.innerHTML="";
+    select.add(new Option("カテゴリーなし",""));
+    cats.forEach(cat=>select.add(new Option(cat.name,cat.id)));
+    if([...select.options].some(o=>o.value===prevSelect)) select.value=prevSelect;
+  }
+
+  function renderStockGrid(){
+    const grid=$("stockGrid");
+    if(!grid) return;
+    let items=[...(stockState().items||[])];
+    if(stockFilterCategoryId==="none") items=items.filter(x=>!archiveLocalCategoryById(x.categoryId));
+    else if(stockFilterCategoryId!=="all") items=items.filter(x=>x.categoryId===stockFilterCategoryId);
+    if(stockFilterStatus!=="all") items=items.filter(x=>x.status===stockFilterStatus);
+
+    items.sort((a,b)=>{
+      const ap=a.status==="progress", bp=b.status==="progress";
+      if(ap!==bp) return ap?-1:1;
+      if(ap) return String(b.startedAt||b.updatedAt||"").localeCompare(String(a.startedAt||a.updatedAt||""));
+      return String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+    });
+
+    $("stockCount").textContent=items.length?`${items.length}件`:"";
+    grid.innerHTML="";
+    if(!items.length){
+      const empty=document.createElement("div");
+      empty.className="stock-empty";
+      empty.innerHTML='<div><strong>まだ積みはありません</strong>左上の＋から追加できます。</div>';
+      grid.appendChild(empty);
+      return;
+    }
+    for(const item of items){
+      const btn=document.createElement("button");
+      btn.type="button";
+      btn.className=`stock-item ${item.status==="progress"?"stock-progress":"stock-unstarted"}${item.id===stockJustStartedId?" stock-just-started":""}`;
+      const cover=document.createElement("div");
+      cover.className="archive-cover";
+      if(item.image?.data){
+        const img=document.createElement("img"); img.src=item.image.data; img.alt=""; cover.appendChild(img);
+      }else cover.textContent="NO IMAGE";
+      if(item.status==="progress"){
+        const strip=document.createElement("div"); strip.className="stock-progress-strip";
+        const track=document.createElement("div"); track.className="stock-progress-track";
+        track.innerHTML='<span>▶ IN PROGRESS　▶ IN PROGRESS　</span><span>▶ IN PROGRESS　▶ IN PROGRESS　</span>';
+        strip.appendChild(track); cover.appendChild(strip);
+      }
+      const title=document.createElement("div"); title.className="stock-item-title"; title.textContent=item.title;
+      const category=document.createElement("div"); category.className="stock-item-category"; category.textContent=archiveLocalCategoryById(item.categoryId)?.name||"カテゴリーなし";
+      btn.append(cover,title,category);
+      btn.addEventListener("click",()=>openStockItemForm(item.id));
+      grid.appendChild(btn);
+    }
+  }
+
+  function renderStock(){
+    renderStockCategoryOptions();
+    if($("stockStatusFilter")) $("stockStatusFilter").value=stockFilterStatus;
+    renderStockGrid();
+  }
+
+  function renderStockImagePreview(){
+    const box=$("stockItemImagePreview"),img=$("stockItemImagePreviewImg"),remove=$("stockRemoveImageBtn");
+    if(stockCurrentImageData){
+      img.src=stockCurrentImageData; box.classList.add("has-image"); remove.hidden=false;
+    }else{
+      img.removeAttribute("src"); box.classList.remove("has-image"); remove.hidden=!stockCurrentImageCloudPath;
+    }
+  }
+
+  function openStockItemForm(id=null){
+    const item=id?(stockState().items||[]).find(x=>x.id===id):null;
+    $("stockItemForm").reset();
+    renderStockCategoryOptions();
+    if(item){
+      $("stockItemFormTitle").textContent="積みを編集";
+      $("stockItemId").value=item.id;
+      $("stockItemTitle").value=item.title;
+      $("stockItemCategory").value=archiveLocalCategoryById(item.categoryId)?item.categoryId:"";
+      const radio=document.querySelector(`input[name="stockStatus"][value="${item.status}"]`); if(radio) radio.checked=true;
+      $("stockItemMemo").value=item.memo||"";
+      stockCurrentImageData=item.image?.data||null;
+      stockCurrentImageCloudPath=item.image?.cloudPath||null;
+      stockCurrentImageId=item.image?.id||null;
+      $("stockNewItemActions").hidden=true;
+      $("stockArchiveActions").hidden=false;
+      $("stockEditItemActions").hidden=false;
+    }else{
+      $("stockItemFormTitle").textContent="積みに追加";
+      $("stockItemId").value="";
+      $("stockItemTitle").value="";
+      $("stockItemCategory").value="";
+      const radio=document.querySelector('input[name="stockStatus"][value="unstarted"]'); if(radio) radio.checked=true;
+      $("stockItemMemo").value="";
+      stockCurrentImageData=null; stockCurrentImageCloudPath=null; stockCurrentImageId=null;
+      $("stockNewItemActions").hidden=false;
+      $("stockArchiveActions").hidden=true;
+      $("stockEditItemActions").hidden=true;
+    }
+    renderStockImagePreview();
+    openOverlay("stockItemOverlay");
+    setTimeout(()=>$("stockItemTitle").focus(),100);
+  }
+
+  async function submitStockItem(e){
+    e.preventDefault();
+    const title=$("stockItemTitle").value.trim(); if(!title) return;
+    const id=$("stockItemId").value;
+    const categoryId=$("stockItemCategory").value||null;
+    const status=document.querySelector('input[name="stockStatus"]:checked')?.value==="progress"?"progress":"unstarted";
+    const memo=$("stockItemMemo").value;
+    const now=new Date().toISOString();
+    const image=(stockCurrentImageData||stockCurrentImageCloudPath)?{
+      id:stockCurrentImageId||uid("stockimg"),
+      data:stockCurrentImageData||null,
+      cloudPath:stockCurrentImageCloudPath||null
+    }:null;
+    if(id){
+      const item=(stockState().items||[]).find(x=>x.id===id); if(!item) return;
+      const enteringProgress=item.status!=="progress"&&status==="progress";
+      item.title=title; item.categoryId=categoryId; item.status=status; item.memo=memo; item.image=image; item.updatedAt=now;
+      if(status==="progress") item.startedAt=enteringProgress?now:(item.startedAt||now); else item.startedAt=null;
+      if(enteringProgress) stockJustStartedId=item.id;
+    }else{
+      const newId=uid("stock");
+      stockState().items.push({id:newId,title,categoryId,status,memo,image,createdAt:now,updatedAt:now,startedAt:status==="progress"?now:null});
+      if(status==="progress") stockJustStartedId=newId;
+    }
+    await saveState();
+    closeOverlay("stockItemOverlay");
+    renderStock();
+  }
+
+  async function deleteStockItem(){
+    const id=$("stockItemId").value; if(!id) return;
+    const item=(stockState().items||[]).find(x=>x.id===id); if(!item) return;
+    if(!confirm(`「${item.title}」を積みから削除しますか？`)) return;
+    state.stock.items=state.stock.items.filter(x=>x.id!==id);
+    await saveState(); closeOverlay("stockItemOverlay"); renderStock();
+  }
+
   const ARCHIVE_LEGACY_DB = "stamp-card-archive-prototype";
   const ARCHIVE_LEGACY_DB_VERSION = 1;
   const ARCHIVE_LEGACY_STORE = "kv";
@@ -3515,6 +3822,7 @@
   let archiveCurrentImageData = null;
   let archiveCurrentImageCloudPath = null;
   let archiveCurrentImageId = null;
+  let archiveSourceStockId = null;
 
   function normalizeArchiveState(raw){
     const hasCategories = raw && Array.isArray(raw.categories);
@@ -3766,6 +4074,7 @@
     if(sort) sort.value=archiveSortMode;
     renderArchiveLocalGrid();
     renderArchiveLocalCategoryManager();
+    if($("stockGrid")) renderStock();
   }
 
   function setArchiveLocalRating(value){
@@ -3785,6 +4094,7 @@
   }
 
   function openArchiveLocalItemForm(id=null){
+    archiveSourceStockId=null;
     const item=id?(archiveState().items||[]).find(x=>x.id===id):null;
     $("archiveItemForm").reset();
     renderArchiveLocalCategoryOptions();
@@ -3822,6 +4132,25 @@
     setTimeout(()=>$("archiveItemTitle").focus(),100);
   }
 
+  function openArchiveFromStock(stockId){
+    const source=(stockState().items||[]).find(x=>x.id===stockId);
+    if(!source) return;
+    closeOverlay("stockItemOverlay");
+    openArchiveLocalItemForm();
+    archiveSourceStockId=source.id;
+    $("archiveItemFormTitle").textContent="ARCHIVEへ";
+    $("archiveItemTitle").value=source.title;
+    $("archiveItemCategory").value=archiveLocalCategoryById(source.categoryId)?source.categoryId:"";
+    $("archiveItemCompletedDate").value=todayStr();
+    $("archiveItemLoopCount").value="1";
+    $("archiveItemComment").value="";
+    archiveCurrentImageData=source.image?.data||null;
+    archiveCurrentImageCloudPath=source.image?.cloudPath||null;
+    archiveCurrentImageId=source.image?.id||null;
+    setArchiveLocalRating(0);
+    renderArchiveLocalImagePreview();
+  }
+
   async function submitArchiveLocalItem(e){
     e.preventDefault();
     const title=$("archiveItemTitle").value.trim();
@@ -3840,11 +4169,33 @@
     if(id){
       const item=(archiveState().items||[]).find(x=>x.id===id); if(!item) return;
       item.title=title; item.categoryId=categoryId; item.completedDate=completedDate; item.loopCount=loopCount; item.rating=archiveCurrentRating; item.comment=comment; item.image=image; item.updatedAt=now;
+      await saveArchiveLocalState();
     }else{
-      archiveState().items.push({id:uid("archive"),title,categoryId,completedDate,loopCount,rating:archiveCurrentRating,comment,image,createdAt:now,updatedAt:now});
+      const newArchiveItem={id:uid("archive"),title,categoryId,completedDate,loopCount,rating:archiveCurrentRating,comment,image,createdAt:now,updatedAt:now};
+      archiveState().items.push(newArchiveItem);
+      if(archiveSourceStockId){
+        const sourceId=archiveSourceStockId;
+        const stockItems=stockState().items||[];
+        const sourceIndex=stockItems.findIndex(x=>x.id===sourceId);
+        const sourceItem=sourceIndex>=0?stockItems[sourceIndex]:null;
+        if(sourceIndex>=0) stockItems.splice(sourceIndex,1);
+        try{
+          // ARCHIVE追加と積みからの削除を同じローカル保存で確定。失敗時は両方戻す。
+          await saveState();
+        }catch(err){
+          archiveState().items=archiveState().items.filter(x=>x.id!==newArchiveItem.id);
+          if(sourceItem && !(stockState().items||[]).some(x=>x.id===sourceItem.id)){
+            stockState().items.splice(Math.max(0,sourceIndex),0,sourceItem);
+          }
+          throw err;
+        }
+      }else{
+        await saveArchiveLocalState();
+      }
     }
-    await saveArchiveLocalState();
+    archiveSourceStockId=null;
     closeOverlay("archiveItemOverlay");
+    renderStock();
     renderArchiveLocal();
   }
 
@@ -3890,15 +4241,18 @@
     const home = name==="home";
     const calendar = name==="calendar";
     const wants = name==="wants";
+    const stock = name==="stock";
     const archive = name==="archive";
     if(!home) stopStampAreaBackgroundSlideshow();
 
     $("homeScreen").classList.toggle("active",home);
     $("calendarScreen").classList.toggle("active",calendar);
     $("wantsScreen").classList.toggle("active",wants);
+    $("stockScreen").classList.toggle("active",stock);
     $("archiveScreen").classList.toggle("active",archive);
     $("homeNav").classList.toggle("active",home);
     $("wantsNav").classList.toggle("active",wants);
+    $("stockNav").classList.toggle("active",stock);
     $("archiveNav").classList.toggle("active",archive);
 
     if(calendar){
@@ -3906,6 +4260,8 @@
       renderCalendar();
     }else if(wants){
       renderWants();
+    }else if(stock){
+      renderStock();
     }else if(archive){
       prepareArchiveLocalScreen();
     }
@@ -4576,7 +4932,27 @@
   $("homeNav").onclick = ()=>showScreen("home");
   $("homeCalendarBtn").onclick = ()=>showScreen("calendar");
   $("wantsNav").onclick = ()=>showScreen("wants");
+  $("stockNav").onclick = ()=>showScreen("stock");
   $("archiveNav").onclick = ()=>showScreen("archive");
+  $("stockAddBtn").onclick = ()=>openStockItemForm();
+  $("stockSettingsBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
+  $("stockCategoryFilter").addEventListener("change",()=>{ stockFilterCategoryId=$("stockCategoryFilter").value||"all"; renderStockGrid(); });
+  $("stockStatusFilter").addEventListener("change",()=>{ stockFilterStatus=$("stockStatusFilter").value||"all"; renderStockGrid(); });
+  $("stockItemForm").addEventListener("submit",e=>submitStockItem(e).catch(console.error));
+  $("stockDeleteItemBtn").onclick=()=>deleteStockItem().catch(console.error);
+  $("stockToArchiveBtn").onclick=()=>{ const id=$("stockItemId").value; if(id) openArchiveFromStock(id); };
+  $("stockChooseImageBtn").onclick=()=>$("stockItemImageInput").click();
+  $("stockItemImageInput").addEventListener("change",async e=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    try{
+      stockCurrentImageData=await diaryImageFileToDataURL(file);
+      stockCurrentImageCloudPath=null;
+      stockCurrentImageId=uid("stockimg");
+      renderStockImagePreview();
+    }catch(err){ console.error(err); alert(err.message||"画像の読み込みに失敗しました"); }
+    finally{ e.target.value=""; }
+  });
+  $("stockRemoveImageBtn").onclick=()=>{ stockCurrentImageData=null; stockCurrentImageCloudPath=null; stockCurrentImageId=null; renderStockImagePreview(); };
   $("archiveAddBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); openArchiveLocalItemForm(); };
   $("archiveSettingsBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
   $("archiveCategoryManageBtn").onclick = async()=>{ await ensureArchiveLocalLoaded(); renderArchiveLocalCategoryManager(); openOverlay("archiveCategoryOverlay"); };
@@ -4668,6 +5044,7 @@
       `スタンプ：${incoming.quests.length}件\n` +
       `達成記録：${incoming.completions.length}件\n` +
       `やりたいこと：${incoming.wants.length}件\n` +
+      `積み：${incoming.stock?.items?.length || 0}件\n` +
       `アーカイブ：${incoming.archive?.items?.length || 0}件\n\n` +
       `現在のデータは上書きされます。`;
 
@@ -4680,6 +5057,7 @@
       renderCalendar();
       renderManage();
       renderWants();
+      renderStock();
       renderArchiveLocal();
       alert("バックアップを読み込みました。");
     }catch(err){
@@ -4815,6 +5193,15 @@
       }
     }
 
+    for(const item of cloned.stock?.items || []){
+      const image=item?.image;
+      if(image?.data){
+        if(!image.cloudPath) missingCloudPath++;
+        delete image.data;
+        stripped++;
+      }
+    }
+
     return {cloudState:cloned, missingCloudPath, stripped};
   }
 
@@ -4836,6 +5223,7 @@
       Object.keys(s.diaries || {}).length===0 &&
       Object.keys(s.diaryImages || {}).length===0 &&
       (s.wants || []).length===0 &&
+      (s.stock?.items || []).length===0 &&
       (s.archive?.items || []).length===0
     );
   }
@@ -4922,6 +5310,7 @@
     renderCalendar();
     renderManage();
     renderWants();
+    renderStock();
     renderArchiveLocal();
   }
 
@@ -5038,6 +5427,13 @@
       }
     }
 
+    for(const item of incoming.stock?.items || []){
+      const image=item?.image;
+      if(image?.cloudPath && !image.data){
+        items.push({image});
+      }
+    }
+
     return items;
   }
 
@@ -5063,6 +5459,13 @@
     }
 
     for(const item of state.archive?.items || []){
+      const image=item?.image;
+      if(image?.cloudPath && image?.data){
+        map.set(image.cloudPath, image.data);
+      }
+    }
+
+    for(const item of state.stock?.items || []){
       const image=item?.image;
       if(image?.cloudPath && image?.data){
         map.set(image.cloudPath, image.data);
@@ -5210,6 +5613,7 @@
       `クラウド更新：${when}\n` +
       `スタンプ：${incoming.quests.length}件\n` +
       `達成記録：${incoming.completions.length}件\n` +
+      `積み：${incoming.stock?.items?.length || 0}件\n` +
       `アーカイブ：${incoming.archive?.items?.length || 0}件\n\n` +
       `この端末の現在データは上書きされます。`;
 
@@ -5477,6 +5881,16 @@
       });
     }
 
+    for(const item of state.stock?.items || []){
+      const image=item?.image;
+      if(!image?.data || image.cloudPath) continue;
+      items.push({
+        kind:"stock",
+        image,
+        basePath:`${userId}/stock/${item.id}/${image.id}`
+      });
+    }
+
     return items;
   }
 
@@ -5518,6 +5932,9 @@
         n + (Array.isArray(arr) ? arr.filter(x=>x?.data && x.cloudPath).length : 0), 0
       ) +
       (state.archive?.items || []).reduce((n,item)=>
+        n + (item?.image?.data && item.image.cloudPath ? 1 : 0), 0
+      ) +
+      (state.stock?.items || []).reduce((n,item)=>
         n + (item?.image?.data && item.image.cloudPath ? 1 : 0), 0
       );
 
@@ -5902,6 +6319,7 @@
       renderHome();
       renderCalendar();
       renderWants();
+      renderStock();
       renderArchiveLocal();
     }catch(err){
       console.error(err);
@@ -5932,7 +6350,7 @@
 
     if("serviceWorker" in navigator){
       window.addEventListener("load",()=>{
-        navigator.serviceWorker.register("./sw.js?v=9.70-archive-sync").catch(console.error);
+        navigator.serviceWorker.register("./sw.js?v=9.83-stock-final").catch(console.error);
       });
     }
   }
