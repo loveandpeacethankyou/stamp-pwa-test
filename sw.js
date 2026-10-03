@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-9-85-archive-comment-size";
+const CACHE = "stamp-card-v1-9-87-stock-memo-archive-label";
 const CORE = [
   "./",
   "./index.html",

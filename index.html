@@ -919,7 +919,7 @@
       color:var(--ink);
       outline:none;
     }
-    #archiveItemComment{
+    #archiveItemComment,#stockItemMemo{
       display:block;
       width:100%;
       min-height:130px;
@@ -1533,13 +1533,13 @@
       </div>
       <div class="field">
         <label for="stockItemMemo">メモ（任意）</label>
-        <textarea id="stockItemMemo" style="min-height:100px;resize:vertical;line-height:1.6"></textarea>
+        <textarea id="stockItemMemo"></textarea>
       </div>
       <div id="stockNewItemActions" class="archive-form-actions single">
         <button class="primary full" type="submit">保存</button>
       </div>
       <div id="stockArchiveActions" class="archive-form-actions single" hidden>
-        <button class="secondary full" id="stockToArchiveBtn" type="button">ARCHIVEへ</button>
+        <button class="secondary full" id="stockToArchiveBtn" type="button">アーカイブへ</button>
       </div>
       <div id="stockEditItemActions" class="archive-form-actions" hidden>
         <button class="danger-btn full" id="stockDeleteItemBtn" type="button">削除</button>
@@ -1682,7 +1682,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.85 loop title badge + UI sounds</div>
+    <div class="version">Stamp Card v1.9.87 loop title badge + UI sounds</div>
   </div>
 </div>
 
