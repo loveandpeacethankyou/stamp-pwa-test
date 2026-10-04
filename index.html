@@ -1635,12 +1635,12 @@
         <div class="stock-progress-input-row">
           <label class="stock-progress-input-part">
             <span>現在</span>
-            <input id="stockProgressCurrent" type="number" min="0" max="9999" step="1" inputmode="numeric" placeholder="2">
+            <input id="stockProgressCurrent" type="number" min="0" max="9999" step="1" inputmode="numeric" enterkeyhint="next" placeholder="2" aria-label="現在の進捗数">
           </label>
           <span class="stock-progress-slash">/</span>
           <label class="stock-progress-input-part">
             <span>全体</span>
-            <input id="stockProgressTotal" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="5">
+            <input id="stockProgressTotal" type="number" min="1" max="9999" step="1" inputmode="numeric" enterkeyhint="done" placeholder="5" aria-label="全体数">
           </label>
         </div>
       </div>
@@ -1795,7 +1795,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.91 stock progress numbers</div>
+    <div class="version">Stamp Card v1.9.92 stock progress numbers</div>
   </div>
 </div>
 
@@ -3863,6 +3863,13 @@
         label.className="stock-progress-label";
         label.textContent="進行中";
         const hasProgress=Number.isFinite(item.progressCurrent)&&Number.isFinite(item.progressTotal)&&item.progressTotal>0;
+        if(hasProgress){
+          const ratio=Math.max(0,Math.min(1,item.progressCurrent/item.progressTotal));
+          const hue=275-(135*ratio); // 紫 → 青 → シアン → 青緑 → 緑
+          strip.classList.add("has-progress");
+          strip.style.background=`linear-gradient(90deg,hsl(${hue},68%,52%),hsl(${Math.max(130,hue-8)},70%,44%))`;
+          strip.style.boxShadow=`0 1px 5px hsla(${hue},65%,30%,.28)`;
+        }
         let right;
         if(hasProgress){
           right=document.createElement("span");
