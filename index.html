@@ -1376,6 +1376,47 @@
     .stock-status-choice input{position:absolute;opacity:0;pointer-events:none}
     .stock-status-choice span{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--muted);font-size:13px;font-weight:700}
     .stock-status-choice input:checked + span{border-color:rgba(165,111,88,.42);background:#f6ede7;color:#9d634d}
+    .stock-progress-input-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+      align-items:end;
+      gap:9px;
+    }
+    .stock-progress-input-part{min-width:0}
+    .stock-progress-input-part span{
+      display:block;
+      margin:0 0 5px 2px;
+      color:var(--muted);
+      font-size:11px;
+    }
+    .stock-progress-input-part input{
+      width:100%;
+      min-width:0;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#fff;
+      padding:11px 12px;
+      color:var(--ink);
+      outline:none;
+      font-variant-numeric:tabular-nums;
+    }
+    .stock-progress-slash{
+      padding-bottom:11px;
+      color:var(--muted);
+      font-size:18px;
+      line-height:1;
+    }
+    .stock-progress-count{
+      position:relative;
+      z-index:2;
+      font-size:11px;
+      line-height:1;
+      font-weight:850;
+      letter-spacing:.03em;
+      font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+      text-shadow:0 1px 2px rgba(0,0,0,.16);
+    }
     @media (max-width:390px){
       .archive-grid{gap:16px 8px}
       .archive-card{padding:12px}
@@ -1546,7 +1587,7 @@
 <nav class="bottom-nav">
   <button id="homeNav" class="nav-btn active">今日</button>
   <button id="wantsNav" class="nav-btn"><span>タスク</span><span id="taskBadge" class="task-badge" hidden></span></button>
-  <button id="stockNav" class="nav-btn">積み</button>
+  <button id="stockNav" class="nav-btn"><span>積み</span><span id="stockBadge" class="task-badge" hidden></span></button>
   <button id="archiveNav" class="nav-btn">アーカイブ</button>
 </nav>
 
@@ -1587,6 +1628,20 @@
         <div class="stock-status-row">
           <label class="stock-status-choice"><input type="radio" name="stockStatus" value="unstarted" checked><span>未着手</span></label>
           <label class="stock-status-choice"><input type="radio" name="stockStatus" value="progress"><span>進行中</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>進捗（任意）</label>
+        <div class="stock-progress-input-row">
+          <label class="stock-progress-input-part">
+            <span>現在</span>
+            <input id="stockProgressCurrent" type="number" min="0" max="9999" step="1" inputmode="numeric" placeholder="2">
+          </label>
+          <span class="stock-progress-slash">/</span>
+          <label class="stock-progress-input-part">
+            <span>全体</span>
+            <input id="stockProgressTotal" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="5">
+          </label>
         </div>
       </div>
       <div class="field">
@@ -1740,7 +1795,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.89 stock always animate</div>
+    <div class="version">Stamp Card v1.9.91 stock progress numbers</div>
   </div>
 </div>
 
@@ -2761,6 +2816,22 @@
     }
   }
 
+  function renderStockBadge(){
+    const nav = $("stockNav");
+    const badge = $("stockBadge");
+    if(!nav || !badge || !state) return;
+    const count = (stockState().items || []).filter(item=>item.status === "progress").length;
+    if(count > 0){
+      badge.textContent = count > 99 ? "99+" : String(count);
+      badge.hidden = false;
+      nav.setAttribute("aria-label", `積み 進行中${count}件`);
+    }else{
+      badge.textContent = "";
+      badge.hidden = true;
+      nav.setAttribute("aria-label", "積み");
+    }
+  }
+
   function renderWants(){
     renderTaskBadge();
     const root = $("wantList");
@@ -3705,11 +3776,20 @@
           };
         }
         const status=x.status==="progress"?"progress":"unstarted";
+        const rawProgressCurrent=x.progressCurrent;
+        const rawProgressTotal=x.progressTotal;
+        let progressCurrent=(rawProgressCurrent!==null&&rawProgressCurrent!==undefined&&rawProgressCurrent!=="")?Number(rawProgressCurrent):NaN;
+        let progressTotal=(rawProgressTotal!==null&&rawProgressTotal!==undefined&&rawProgressTotal!=="")?Number(rawProgressTotal):NaN;
+        progressCurrent=Number.isFinite(progressCurrent)&&progressCurrent>=0?Math.min(9999,Math.floor(progressCurrent)):null;
+        progressTotal=Number.isFinite(progressTotal)&&progressTotal>=1?Math.min(9999,Math.floor(progressTotal)):null;
+        if(progressCurrent!==null&&progressTotal!==null&&progressCurrent>progressTotal) progressCurrent=progressTotal;
         return {
           id:String(x.id),
           title:String(x.title),
           categoryId:x.categoryId?String(x.categoryId):null,
           status,
+          progressCurrent,
+          progressTotal,
           memo:typeof x.memo==="string"?x.memo:"",
           image,
           createdAt:x.createdAt||new Date().toISOString(),
@@ -3782,12 +3862,20 @@
         const label=document.createElement("span");
         label.className="stock-progress-label";
         label.textContent="進行中";
-        const dots=document.createElement("span");
-        dots.className="stock-loading-dots";
-        dots.innerHTML="<i></i><i></i><i></i>";
+        const hasProgress=Number.isFinite(item.progressCurrent)&&Number.isFinite(item.progressTotal)&&item.progressTotal>0;
+        let right;
+        if(hasProgress){
+          right=document.createElement("span");
+          right.className="stock-progress-count";
+          right.textContent=`${item.progressCurrent}/${item.progressTotal}`;
+        }else{
+          right=document.createElement("span");
+          right.className="stock-loading-dots";
+          right.innerHTML="<i></i><i></i><i></i>";
+        }
         const line=document.createElement("span");
         line.className="stock-progress-line";
-        strip.append(label,dots,line);
+        strip.append(label,right,line);
         cover.appendChild(strip);
       }
       const title=document.createElement("div"); title.className="stock-item-title"; title.textContent=item.title;
@@ -3800,6 +3888,7 @@
 
   function renderStock(){
     renderStockCategoryOptions();
+    renderStockBadge();
     if($("stockStatusFilter")) $("stockStatusFilter").value=stockFilterStatus;
     renderStockGrid();
   }
@@ -3823,6 +3912,8 @@
       $("stockItemTitle").value=item.title;
       $("stockItemCategory").value=archiveLocalCategoryById(item.categoryId)?item.categoryId:"";
       const radio=document.querySelector(`input[name="stockStatus"][value="${item.status}"]`); if(radio) radio.checked=true;
+      $("stockProgressCurrent").value=Number.isFinite(item.progressCurrent)?String(item.progressCurrent):"";
+      $("stockProgressTotal").value=Number.isFinite(item.progressTotal)?String(item.progressTotal):"";
       $("stockItemMemo").value=item.memo||"";
       stockCurrentImageData=item.image?.data||null;
       stockCurrentImageCloudPath=item.image?.cloudPath||null;
@@ -3836,6 +3927,8 @@
       $("stockItemTitle").value="";
       $("stockItemCategory").value="";
       const radio=document.querySelector('input[name="stockStatus"][value="unstarted"]'); if(radio) radio.checked=true;
+      $("stockProgressCurrent").value="";
+      $("stockProgressTotal").value="";
       $("stockItemMemo").value="";
       stockCurrentImageData=null; stockCurrentImageCloudPath=null; stockCurrentImageId=null;
       $("stockNewItemActions").hidden=false;
@@ -3853,6 +3946,11 @@
     const id=$("stockItemId").value;
     const categoryId=$("stockItemCategory").value||null;
     const status=document.querySelector('input[name="stockStatus"]:checked')?.value==="progress"?"progress":"unstarted";
+    const currentRaw=$("stockProgressCurrent").value.trim();
+    const totalRaw=$("stockProgressTotal").value.trim();
+    let progressCurrent=currentRaw===""?null:Math.max(0,Math.min(9999,Math.floor(Number(currentRaw)||0)));
+    let progressTotal=totalRaw===""?null:Math.max(1,Math.min(9999,Math.floor(Number(totalRaw)||1)));
+    if(progressCurrent!==null&&progressTotal!==null&&progressCurrent>progressTotal) progressCurrent=progressTotal;
     const memo=$("stockItemMemo").value;
     const now=new Date().toISOString();
     const image=(stockCurrentImageData||stockCurrentImageCloudPath)?{
@@ -3863,12 +3961,12 @@
     if(id){
       const item=(stockState().items||[]).find(x=>x.id===id); if(!item) return;
       const enteringProgress=item.status!=="progress"&&status==="progress";
-      item.title=title; item.categoryId=categoryId; item.status=status; item.memo=memo; item.image=image; item.updatedAt=now;
+      item.title=title; item.categoryId=categoryId; item.status=status; item.progressCurrent=progressCurrent; item.progressTotal=progressTotal; item.memo=memo; item.image=image; item.updatedAt=now;
       if(status==="progress") item.startedAt=enteringProgress?now:(item.startedAt||now); else item.startedAt=null;
       if(enteringProgress) stockJustStartedId=item.id;
     }else{
       const newId=uid("stock");
-      stockState().items.push({id:newId,title,categoryId,status,memo,image,createdAt:now,updatedAt:now,startedAt:status==="progress"?now:null});
+      stockState().items.push({id:newId,title,categoryId,status,progressCurrent,progressTotal,memo,image,createdAt:now,updatedAt:now,startedAt:status==="progress"?now:null});
       if(status==="progress") stockJustStartedId=newId;
     }
     await saveState();
