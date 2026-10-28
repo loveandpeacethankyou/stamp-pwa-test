@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-10-10-cloud-metadata-first";
+const CACHE = "stamp-card-v1-10-11-stamp-sound-visual-sync";
 const CORE = [
   "./",
   "./index.html",

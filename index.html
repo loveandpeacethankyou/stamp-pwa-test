@@ -3592,10 +3592,11 @@
 
     if(existing){
       state.completions = state.completions.filter(c=>c.id!==existing.id);
-      playStampSound();
-      await saveState();
+      // v1.10.11: 保存を待たず先に表示を更新し、次フレームで音と視覚を合わせる。
       renderHome();
       renderCalendar();
+      requestAnimationFrame(()=>playStampSound());
+      await saveState();
       return;
     }
 
@@ -3627,10 +3628,12 @@
       createdAt:new Date().toISOString()
     });
 
-    playStampSound();
-    await saveState();
+    // v1.10.11: 画像の表示を先に準備し、画面更新フレームでSEを開始する。
+    // 既存の画像選択・完了履歴・保存方法は変更しない。
     renderHome();
     renderCalendar();
+    requestAnimationFrame(()=>playStampSound());
+    await saveState();
   }
 
   let stampAudioCtx = null;
