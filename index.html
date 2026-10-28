@@ -1793,7 +1793,9 @@
       <h3 class="backup-title">データ容量診断</h3>
       <button id="dataDiagnosticBtn" type="button" class="secondary full">容量を計測する</button>
       <div id="dataDiagnosticResult" class="data-diagnostic-result" hidden>
-        <div class="data-diagnostic-row"><span>ローカルデータ全体</span><strong id="dataDiagnosticTotal">—</strong></div>
+        <div class="data-diagnostic-row"><span>ローカルデータ全体（復元後）</span><strong id="dataDiagnosticTotal">—</strong></div>
+        <div class="data-diagnostic-row"><span>IndexedDB保存データ（概算）</span><strong id="dataDiagnosticStored">—</strong></div>
+        <div class="data-diagnostic-row"><span>復元後との差（概算）</span><strong id="dataDiagnosticSaved">—</strong></div>
         <div class="data-diagnostic-row"><span>日記画像</span><strong id="dataDiagnosticDiary">—</strong></div>
         <div class="data-diagnostic-row"><span>ARCHIVE画像</span><strong id="dataDiagnosticArchive">—</strong></div>
         <div class="data-diagnostic-row"><span>積み画像</span><strong id="dataDiagnosticStock">—</strong></div>
@@ -1856,7 +1858,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.98 local image compact</div>
+    <div class="version">Stamp Card v1.9.99 stored size diagnostic</div>
   </div>
 </div>
 
@@ -5443,15 +5445,33 @@
     return {cloudCollisions,imageIdCollisions,historyMissing,missingStyle,missingImage};
   }
 
+  // 読み取り専用: IndexedDBに実際に格納されているstateを直接計測する。
+  // 端末の物理ディスク使用量ではなく、JSONへシリアライズした場合の概算値。
+  async function readStoredStateSize(){
+    const db=await openDB();
+    try{
+      const raw=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,"readonly");
+        const req=tx.objectStore(STORE).get(STATE_KEY);
+        req.onsuccess=()=>resolve(req.result);
+        req.onerror=()=>reject(req.error||new Error("保存データを読み取れません"));
+      });
+      return raw===undefined ? null : diagnosticStringBytes(JSON.stringify(raw));
+    }finally{db.close();}
+  }
+
   function renderDataDiagnostic(){
     const btn=$("dataDiagnosticBtn");
     const result=$("dataDiagnosticResult");
     if(!btn || !result || !state) return;
     btn.disabled=true;
     btn.textContent="計測中…";
-    setTimeout(()=>{
+    setTimeout(async()=>{
       try{
         const d=collectDataDiagnostic();
+        const storedBytes=await readStoredStateSize();
+        $("dataDiagnosticStored").textContent=storedBytes===null?"データなし":diagnosticFormatBytes(storedBytes);
+        $("dataDiagnosticSaved").textContent=storedBytes===null?"—":diagnosticFormatBytes(Math.max(0,d.totalBytes-storedBytes));
         $("dataDiagnosticTotal").textContent=diagnosticFormatBytes(d.totalBytes);
         $("dataDiagnosticDiary").textContent=`${diagnosticFormatBytes(d.diaryBytes)}（${d.diaryCount}枚）`;
         $("dataDiagnosticArchive").textContent=`${diagnosticFormatBytes(d.archiveBytes)}（${d.archiveCount}枚）`;
