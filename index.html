@@ -1813,8 +1813,12 @@
         <div class="data-diagnostic-row"><span>異なる画像でStorage保存先が同じ</span><strong id="stampSafetyCloudCollision">—</strong></div>
         <div class="data-diagnostic-row"><span>同じスタイル内の画像ID重複</span><strong id="stampSafetyImageIdCollision">—</strong></div>
         <div class="data-diagnostic-row"><span>達成履歴の画像参照切れ</span><strong id="stampSafetyHistoryMissing">—</strong></div>
+        <div class="data-diagnostic-row"><span>参照切れ：スタンプ設定なし</span><strong id="stampSafetyMissingStyle">—</strong></div>
+        <div class="data-diagnostic-row"><span>参照切れ：画像IDなし</span><strong id="stampSafetyMissingImage">—</strong></div>
         <div id="stampSafetyNote" class="data-diagnostic-summary"></div>
       </div>
+      <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
+      <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
     </div>
 
@@ -1852,7 +1856,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.95 migration safety check</div>
+    <div class="version">Stamp Card v1.9.98 local image compact</div>
   </div>
 </div>
 
@@ -2103,30 +2107,76 @@
     });
   }
 
+  // v1.9.98: IndexedDB内だけで重複したスタンプ画像を共有する。
+  // state (画面・JSONバックアップ・クラウド同期) は変更せず、ロード時に復元する。
+  const LOCAL_STAMP_COMPACT_KEY="stamp-card-local-stamp-compact-v1";
+  const SHARED_IMAGE_FIELD="__stampCardLocalImageRef";
+  function packLocalStampImages(source){
+    const seen=new Map();
+    let duplicates=0;
+    const styles=(source.styles||[]).map((style,si)=>{
+      if(!Array.isArray(style?.images)) return style;
+      const images=style.images.map((im,ii)=>{
+        if(!im || typeof im.data!=="string" || !im.data.startsWith("data:image/")) return im;
+        const previous=seen.get(im.data);
+        if(previous){
+          duplicates++;
+          const {data,...rest}=im;
+          return {...rest,[SHARED_IMAGE_FIELD]:previous};
+        }
+        seen.set(im.data,[si,ii]);
+        return im;
+      });
+      return {...style,images};
+    });
+    return {stored:{...source,styles},duplicates};
+  }
+  function restoreLocalStampImages(saved){
+    if(!saved || !Array.isArray(saved.styles)) return saved;
+    let found=false;
+    const styles=saved.styles.map(s=>{
+      if(!Array.isArray(s?.images)) return s;
+      return {...s,images:s.images.map(im=>{
+        if(!im || !Object.prototype.hasOwnProperty.call(im,SHARED_IMAGE_FIELD)) return im;
+        found=true;
+        const [si,ii]=im[SHARED_IMAGE_FIELD]||[];
+        const source=saved.styles[si]?.images?.[ii];
+        if(typeof source?.data!=="string") throw new Error("スタンプ画像の復元に失敗しました。保存データは変更しません。");
+        const {[SHARED_IMAGE_FIELD]:ref,...rest}=im;
+        return {...rest,data:source.data};
+      })};
+    });
+    return found ? {...saved,styles} : saved;
+  }
+  async function writeLocalState(value,packed){
+    const db=await openDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(STORE,"readwrite");
+      tx.objectStore(STORE).put(packed ? packLocalStampImages(value).stored : value,STATE_KEY);
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+      tx.onabort=()=>reject(tx.error||new Error("保存が中断されました"));
+    });
+  }
   async function loadState(){
     const db = await openDB();
     return new Promise((resolve,reject)=>{
       const tx = db.transaction(STORE,"readonly");
       const req = tx.objectStore(STORE).get(STATE_KEY);
-      req.onsuccess = () => resolve(normalizeState(req.result));
+      req.onsuccess = () => {
+        try{resolve(normalizeState(restoreLocalStampImages(req.result)));}
+        catch(err){reject(err);}
+      };
       req.onerror = () => reject(req.error);
     });
   }
 
   async function saveState(options={}){
-    const db = await openDB();
-    return new Promise((resolve,reject)=>{
-      const tx = db.transaction(STORE,"readwrite");
-      tx.objectStore(STORE).put(state, STATE_KEY);
-      tx.oncomplete = () => {
-        if(!options.fromCloud){
-          markCloudDirty();
-          scheduleAutoCloudPush();
-        }
-        resolve();
-      };
-      tx.onerror = () => reject(tx.error);
-    });
+    await writeLocalState(state,localStorage.getItem(LOCAL_STAMP_COMPACT_KEY)==="1");
+    if(!options.fromCloud){
+      markCloudDirty();
+      scheduleAutoCloudPush();
+    }
   }
 
   function styleById(id){
@@ -5358,7 +5408,7 @@
   // cloudPath が同じなのにローカル画像内容が異なる場合は安全に共通化できない。
   function collectStampReferenceSafety(){
     const paths=new Map();
-    let cloudCollisions=0, imageIdCollisions=0, historyMissing=0;
+    let cloudCollisions=0, imageIdCollisions=0, historyMissing=0, missingStyle=0, missingImage=0;
     const collisionPaths=new Set();
     const styles=new Map();
     for(const style of state?.styles || []){
@@ -5383,14 +5433,14 @@
     for(const completion of state?.completions || []){
       if(!completion || !completion.styleId) continue;
       const style=styles.get(completion.styleId);
-      if(!style){ historyMissing++; continue; }
+      if(!style){ historyMissing++; missingStyle++; continue; }
       if(completion.chosenImageId){
         const images=Array.isArray(style.images) ? style.images :
           (style.imageData ? [{id:`legacy_${style.id}`}] : []);
-        if(!images.some(img=>img?.id===completion.chosenImageId)) historyMissing++;
+        if(!images.some(img=>img?.id===completion.chosenImageId)){ historyMissing++; missingImage++; }
       }
     }
-    return {cloudCollisions,imageIdCollisions,historyMissing};
+    return {cloudCollisions,imageIdCollisions,historyMissing,missingStyle,missingImage};
   }
 
   function renderDataDiagnostic(){
@@ -5443,7 +5493,9 @@
         $("stampSafetyCloudCollision").textContent=`${refs.cloudCollisions}件`;
         $("stampSafetyImageIdCollision").textContent=`${refs.imageIdCollisions}件`;
         $("stampSafetyHistoryMissing").textContent=`${refs.historyMissing}件`;
-        $("stampSafetyNote").textContent="v1.9.96 参照整合性の読み取り専用診断です。履歴の参照切れはスタイル未発見・選択画像ID未発見の件数です。画像や履歴の書き換え・削除は行っていません。";
+        $("stampSafetyMissingStyle").textContent=`${refs.missingStyle}件`;
+        $("stampSafetyMissingImage").textContent=`${refs.missingImage}件`;
+        $("stampSafetyNote").textContent="v1.9.97 読み取り専用診断です。参照切れの内訳を確認できます。現在の表示処理では画像IDが見つからない場合に別の画像へ代替表示される可能性があります。画像や履歴の書き換え・削除は行っていません。";
         result.hidden=false;
       }catch(err){
         console.error(err);
@@ -5456,6 +5508,40 @@
   }
 
   $("dataDiagnosticBtn").addEventListener("click",renderDataDiagnostic);
+  $("compactStampImagesBtn").addEventListener("click",async()=>{
+    const btn=$("compactStampImagesBtn");
+    const status=$("compactStampImagesStatus");
+    if(!confirm("先に設定画面からJSONバックアップをダウンロードして保存しましたか？\n\nこの端末のIndexedDBだけでスタンプ画像の重複を共通化します。クラウドや達成履歴は変更しません。")) return;
+    btn.disabled=true;
+    status.textContent="保存・復元を確認中…";
+    try{
+      const packed=packLocalStampImages(state);
+      if(!packed.duplicates){ status.textContent="重複画像は見つかりませんでした。";return; }
+      const unpacked=restoreLocalStampImages(packed.stored);
+      for(let si=0;si<(state.styles||[]).length;si++){
+        const a=state.styles[si]?.images||[];
+        const b=unpacked.styles[si]?.images||[];
+        if(a.length!==b.length || a.some((im,i)=>im?.data!==b[i]?.data || im?.cloudPath!==b[i]?.cloudPath || im?.id!==b[i]?.id)){
+          throw new Error("復元検証に失敗しました。保存処理は実行していません。");
+        }
+      }
+      await writeLocalState(state,true);
+      const checked=await loadState();
+      for(let si=0;si<(state.styles||[]).length;si++){
+        const a=state.styles[si]?.images||[];
+        const b=checked.styles[si]?.images||[];
+        if(a.length!==b.length || a.some((im,i)=>im?.data!==b[i]?.data || im?.cloudPath!==b[i]?.cloudPath || im?.id!==b[i]?.id)){
+          throw new Error("保存後の検証に失敗しました。JSONバックアップから復元してください。");
+        }
+      }
+      localStorage.setItem(LOCAL_STAMP_COMPACT_KEY,"1");
+      status.textContent=`完了：重複${packed.duplicates}枚を保存時に共通化しました。画面上の容量診断は復元後のstateのため、従来の80MB前後を表示します。次回以降の保存も軽量形式です。`;
+    }catch(err){
+      console.error(err);
+      status.textContent="軽量化できませんでした："+(err?.message||String(err));
+    }finally{btn.disabled=false;}
+  });
+
 
   function backupFilename(){
     const d = new Date();
