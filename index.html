@@ -1810,6 +1810,10 @@
         <div class="data-diagnostic-row"><span>重複画像の別Storage保存先</span><strong id="stampPreflightPaths">—</strong></div>
         <div class="data-diagnostic-row"><span>旧形式のスタンプ画像</span><strong id="stampPreflightLegacy">—</strong></div>
         <div id="stampPreflightNote" class="data-diagnostic-summary"></div>
+        <div class="data-diagnostic-row"><span>異なる画像でStorage保存先が同じ</span><strong id="stampSafetyCloudCollision">—</strong></div>
+        <div class="data-diagnostic-row"><span>同じスタイル内の画像ID重複</span><strong id="stampSafetyImageIdCollision">—</strong></div>
+        <div class="data-diagnostic-row"><span>達成履歴の画像参照切れ</span><strong id="stampSafetyHistoryMissing">—</strong></div>
+        <div id="stampSafetyNote" class="data-diagnostic-summary"></div>
       </div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
     </div>
@@ -5350,6 +5354,45 @@
     return {withCloud,missingCloud,legacy,noLocalData,multiPathGroups,multiPathImages,duplicatedMissingCloud};
   }
 
+  // v1.9.96: 移行前の参照整合性を読み取り専用で検査する。
+  // cloudPath が同じなのにローカル画像内容が異なる場合は安全に共通化できない。
+  function collectStampReferenceSafety(){
+    const paths=new Map();
+    let cloudCollisions=0, imageIdCollisions=0, historyMissing=0;
+    const collisionPaths=new Set();
+    const styles=new Map();
+    for(const style of state?.styles || []){
+      if(!style || !style.id) continue;
+      styles.set(style.id,style);
+      const ids=new Set();
+      for(const image of style.images || []){
+        if(!image || typeof image!=="object") continue;
+        if(image.id){
+          if(ids.has(image.id)) imageIdCollisions++;
+          else ids.add(image.id);
+        }
+        if(typeof image.cloudPath==="string" && image.cloudPath &&
+           typeof image.data==="string" && image.data){
+          if(paths.has(image.cloudPath) && paths.get(image.cloudPath)!==image.data){
+            collisionPaths.add(image.cloudPath);
+          }else if(!paths.has(image.cloudPath)) paths.set(image.cloudPath,image.data);
+        }
+      }
+    }
+    cloudCollisions=collisionPaths.size;
+    for(const completion of state?.completions || []){
+      if(!completion || !completion.styleId) continue;
+      const style=styles.get(completion.styleId);
+      if(!style){ historyMissing++; continue; }
+      if(completion.chosenImageId){
+        const images=Array.isArray(style.images) ? style.images :
+          (style.imageData ? [{id:`legacy_${style.id}`}] : []);
+        if(!images.some(img=>img?.id===completion.chosenImageId)) historyMissing++;
+      }
+    }
+    return {cloudCollisions,imageIdCollisions,historyMissing};
+  }
+
   function renderDataDiagnostic(){
     const btn=$("dataDiagnosticBtn");
     const result=$("dataDiagnosticResult");
@@ -5396,6 +5439,11 @@
           (safety.noLocalData ? ` ローカル画像本体がない登録：${safety.noLocalData}枚。` : "")+
           (safety.duplicatedMissingCloud ? ` 重複画像のうち保存先未設定：${safety.duplicatedMissingCloud}枚。` : "")+
           ` 同じ画像でもStorage保存先が異なる場合、単純な参照統合は危険です。画像の削除・統合・保存処理は実行していません。`;
+        const refs=collectStampReferenceSafety();
+        $("stampSafetyCloudCollision").textContent=`${refs.cloudCollisions}件`;
+        $("stampSafetyImageIdCollision").textContent=`${refs.imageIdCollisions}件`;
+        $("stampSafetyHistoryMissing").textContent=`${refs.historyMissing}件`;
+        $("stampSafetyNote").textContent="v1.9.96 参照整合性の読み取り専用診断です。履歴の参照切れはスタイル未発見・選択画像ID未発見の件数です。画像や履歴の書き換え・削除は行っていません。";
         result.hidden=false;
       }catch(err){
         console.error(err);
