@@ -1451,6 +1451,19 @@
       .bottom-nav{gap:4px;padding-left:8px;padding-right:8px}
       .nav-btn{padding-left:4px;padding-right:4px;font-size:12px}
     }
+
+    /* Settings: compact, collapsible groups. Inner controls retain original IDs and behaviors. */
+    .settings-fold{margin:9px 0;border:1px solid var(--line, #ded9d1);border-radius:12px;overflow:hidden;background:var(--card, #fff)}
+    .settings-fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:15px 14px;min-height:49px;font-size:15px;font-weight:750;user-select:none;-webkit-tap-highlight-color:transparent}
+    .settings-fold>summary::-webkit-details-marker{display:none}
+    .settings-fold>summary::after{content:'⌄';font-size:20px;line-height:1;font-weight:500;color:var(--muted);transition:transform .16s ease}
+    .settings-fold[open]>summary::after{transform:rotate(180deg)}
+    .settings-fold[open]>summary{border-bottom:1px solid var(--line, #ded9d1)}
+    .settings-fold-body{padding:12px 13px 14px;min-width:0}
+    .settings-fold-body>.backup-section:first-child,.settings-fold-body>.cloud-section:first-child{margin-top:0}
+    .settings-fold-body>.backup-section:first-child{padding-top:0}
+    .settings-fold-body>h3:first-of-type{margin-top:15px!important}
+    .settings-fold-body .backup-section,.settings-fold-body .cloud-section{max-width:100%}
   </style>
 </head>
 <body>
@@ -1775,10 +1788,18 @@
       <h2>設定</h2>
       <button class="close-btn" data-close="settingsOverlay">×</button>
     </div>
+    <details class="settings-fold">
+      <summary>スタンプの追加・管理</summary>
+      <div class="settings-fold-body">
     <button id="newQuestFromSettings" class="primary full">＋ スタンプを追加</button>
     <h3 style="font-size:15px;margin:20px 0 10px">スタンプ管理</h3>
     <div id="manageList" class="manage-list"></div>
 
+      </div>
+    </details>
+    <details class="settings-fold">
+      <summary>バックアップ</summary>
+      <div class="settings-fold-body">
     <div class="backup-section">
       <h3 class="backup-title">バックアップ</h3>
       <div class="backup-buttons">
@@ -1789,6 +1810,11 @@
       <div class="backup-note">スタンプ・達成記録・メモ・日記・画像・やりたいこと・アーカイブをまとめて保存します。</div>
     </div>
 
+      </div>
+    </details>
+    <details class="settings-fold">
+      <summary>データ容量診断・軽量化</summary>
+      <div class="settings-fold-body">
     <div class="backup-section">
       <h3 class="backup-title">データ容量診断</h3>
       <button id="dataDiagnosticBtn" type="button" class="secondary full">容量を計測する</button>
@@ -1851,6 +1877,11 @@
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
     </div>
 
+      </div>
+    </details>
+    <details class="settings-fold">
+      <summary>iPhone・Windows共有</summary>
+      <div class="settings-fold-body">
     <div class="cloud-section">
       <h3 class="backup-title">iPhone・Windows共有</h3>
       <div class="backup-note" style="margin:0 0 10px">ログイン中は、起動時と変更後に自動同期します。競合を検出した場合は自動上書きしません。</div>
@@ -1873,6 +1904,11 @@
       <div id="cloudStatus" class="cloud-status">未ログイン</div>
     </div>
 
+      </div>
+    </details>
+    <details class="settings-fold">
+      <summary>Googleカレンダー</summary>
+      <div class="settings-fold-body">
     <div class="cloud-section">
       <h3 class="backup-title">Googleカレンダー</h3>
       <div class="backup-note" style="margin:0 0 10px">Apps ScriptのウェブアプリURLと秘密キーを、この端末だけに保存します。</div>
@@ -1885,7 +1921,9 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.08 home render timing diagnostic</div>
+      </div>
+    </details>
+    <div class="version">Stamp Card v1.10.12 settings organization</div>
   </div>
 </div>
 
