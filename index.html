@@ -1803,6 +1803,11 @@
         <div class="data-diagnostic-row"><span>日記画像の最大サイズ</span><strong id="diaryLargestBytes">—</strong></div>
         <div class="data-diagnostic-row"><span>日記画像の1枚平均</span><strong id="diaryAverageBytes">—</strong></div>
         <div id="diaryDiagnosticNote" class="data-diagnostic-summary"></div>
+        <div class="data-diagnostic-row"><span>日記画像：Storage保存先あり</span><strong id="diaryCloudAvailable">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像：Storage保存先なし</span><strong id="diaryCloudMissing">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像：同じ保存先で別画像</span><strong id="diaryCloudCollision">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像の形式</span><strong id="diaryImageFormats">—</strong></div>
+        <div id="diaryCloudNote" class="data-diagnostic-summary"></div>
         <div class="data-diagnostic-row"><span>ARCHIVE画像</span><strong id="dataDiagnosticArchive">—</strong></div>
         <div class="data-diagnostic-row"><span>積み画像</span><strong id="dataDiagnosticStock">—</strong></div>
         <div class="data-diagnostic-row"><span>その他</span><strong id="dataDiagnosticOther">—</strong></div>
@@ -1864,7 +1869,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.00 diary image diagnostic</div>
+    <div class="version">Stamp Card v1.10.01 diary cloud readiness diagnostic</div>
   </div>
 </div>
 
@@ -5370,6 +5375,30 @@
       average:count?bytes/count:0,missing};
   }
 
+  // v1.10.01: 日記画像のStorage参照状態を読み取り専用で診断。
+  // 参照先の実在やクラウドからの取得可能性は保証しない。
+  function collectDiaryCloudDiagnostic(){
+    const paths=new Map();
+    const formats=new Map();
+    let withPath=0, withoutPath=0, collision=0;
+    for(const images of Object.values(state?.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        if(!image || typeof image!=="object") continue;
+        const data=typeof image.data==="string"?image.data:"";
+        const path=typeof image.cloudPath==="string"?image.cloudPath.trim():"";
+        const match=/^data:(image\/[a-zA-Z0-9.+-]+);/i.exec(data);
+        const kind=match?match[1].slice(6).toUpperCase():(data?"不明":"画像データなし");
+        formats.set(kind,(formats.get(kind)||0)+1);
+        if(!path){ withoutPath++; continue; }
+        withPath++;
+        if(paths.has(path) && paths.get(path)!==data) collision++;
+        else paths.set(path,data);
+      }
+    }
+    return {withPath,withoutPath,collision,formats:[...formats.entries()].map(([k,v])=>`${k} ${v}枚`).join(" / ")};
+  }
+
   // 読み取り専用。スタンプ設定内のBase64文字列を完全一致で比較する。
   // 完了履歴の画像ID参照は画像本体の複製としてカウントしない。
   function collectStampDuplicateDiagnostic(){
@@ -5509,6 +5538,12 @@
           `日記のBase64画像を完全一致で比較（読み取り専用）。`+
           (diary.missing?` データ未保持の画像${diary.missing}枚は対象外です。`:"")+
           ` 画像・日記・保存形式・クラウド同期は変更していません。`;
+        const diaryCloud=collectDiaryCloudDiagnostic();
+        $("diaryCloudAvailable").textContent=`${diaryCloud.withPath}枚`;
+        $("diaryCloudMissing").textContent=`${diaryCloud.withoutPath}枚`;
+        $("diaryCloudCollision").textContent=`${diaryCloud.collision}件`;
+        $("diaryImageFormats").textContent=diaryCloud.formats||"—";
+        $("diaryCloudNote").textContent="Storage保存先の登録状況のみ調査（読み取り専用）。クラウド上の実在や復元成功は未検証です。";
         $("dataDiagnosticArchive").textContent=`${diagnosticFormatBytes(d.archiveBytes)}（${d.archiveCount}枚）`;
         $("dataDiagnosticStock").textContent=`${diagnosticFormatBytes(d.stockBytes)}（${d.stockCount}枚）`;
         $("dataDiagnosticOther").textContent=diagnosticFormatBytes(d.otherBytes);

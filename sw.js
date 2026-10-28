@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-10-00-diary-image-diagnostic";
+const CACHE = "stamp-card-v1-10-01-diary-cloud-readiness";
 const CORE = [
   "./",
   "./index.html",
