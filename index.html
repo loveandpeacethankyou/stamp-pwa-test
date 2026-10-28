@@ -1805,6 +1805,11 @@
         <div class="data-diagnostic-row"><span>重複分のデータ容量</span><strong id="stampDuplicateBytes">—</strong></div>
         <div class="data-diagnostic-row"><span>重複除外後の画像容量</span><strong id="stampDuplicateNet">—</strong></div>
         <div id="stampDuplicateNote" class="data-diagnostic-summary"></div>
+        <div class="data-diagnostic-row"><span>Storage保存先あり</span><strong id="stampPreflightCloud">—</strong></div>
+        <div class="data-diagnostic-row"><span>Storage保存先なし</span><strong id="stampPreflightMissing">—</strong></div>
+        <div class="data-diagnostic-row"><span>重複画像の別Storage保存先</span><strong id="stampPreflightPaths">—</strong></div>
+        <div class="data-diagnostic-row"><span>旧形式のスタンプ画像</span><strong id="stampPreflightLegacy">—</strong></div>
+        <div id="stampPreflightNote" class="data-diagnostic-summary"></div>
       </div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
     </div>
@@ -1843,7 +1848,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.94 stamp duplicate diagnostic</div>
+    <div class="version">Stamp Card v1.9.95 migration safety check</div>
   </div>
 </div>
 
@@ -5315,6 +5320,36 @@
       uniqueBytes:totalBytes-duplicateBytes,withoutData,historicalImageFields};
   }
 
+  // v1.9.95: 読み取り専用。移行実行やstate変更をせず、画像参照の安全性だけ検査する。
+  function collectStampMigrationPreflight(){
+    let withCloud=0, missingCloud=0, legacy=0, noLocalData=0;
+    const groups=new Map();
+    for(const style of state?.styles || []){
+      if(Array.isArray(style?.images)){
+        for(const item of style.images){
+          if(!item || typeof item!=="object") continue;
+          if(item.cloudPath) withCloud++;
+          else missingCloud++;
+          if(!item.data){ noLocalData++; continue; }
+          let group=groups.get(item.data);
+          if(!group){ group={count:0,paths:new Set(),noPath:0}; groups.set(item.data,group); }
+          group.count++;
+          if(item.cloudPath) group.paths.add(item.cloudPath);
+          else group.noPath++;
+        }
+      }else if(typeof style?.imageData==="string" && style.imageData){
+        legacy++;
+      }
+    }
+    let multiPathGroups=0, multiPathImages=0, duplicatedMissingCloud=0;
+    for(const group of groups.values()){
+      if(group.count<2) continue;
+      if(group.paths.size>1){ multiPathGroups++; multiPathImages+=group.count; }
+      duplicatedMissingCloud+=group.noPath;
+    }
+    return {withCloud,missingCloud,legacy,noLocalData,multiPathGroups,multiPathImages,duplicatedMissingCloud};
+  }
+
   function renderDataDiagnostic(){
     const btn=$("dataDiagnosticBtn");
     const result=$("dataDiagnosticResult");
@@ -5351,6 +5386,16 @@
           ` 達成履歴${state.completions?.length || 0}件は通常画像IDで参照されています。`+
           (dup.historicalImageFields ? ` ただし履歴${dup.historicalImageFields}件に画像文字列が見つかりました。` : "")+
           (dup.withoutData ? ` 画像データ未保持の登録${dup.withoutData}件は比較対象外です。` : "");
+        const safety=collectStampMigrationPreflight();
+        $("stampPreflightCloud").textContent=`${safety.withCloud}枚`;
+        $("stampPreflightMissing").textContent=`${safety.missingCloud}枚`;
+        $("stampPreflightPaths").textContent=`${safety.multiPathGroups}組（${safety.multiPathImages}枚）`;
+        $("stampPreflightLegacy").textContent=`${safety.legacy}枚`;
+        $("stampPreflightNote").textContent=
+          `移行前の安全チェック（読み取り専用）。`+
+          (safety.noLocalData ? ` ローカル画像本体がない登録：${safety.noLocalData}枚。` : "")+
+          (safety.duplicatedMissingCloud ? ` 重複画像のうち保存先未設定：${safety.duplicatedMissingCloud}枚。` : "")+
+          ` 同じ画像でもStorage保存先が異なる場合、単純な参照統合は危険です。画像の削除・統合・保存処理は実行していません。`;
         result.hidden=false;
       }catch(err){
         console.error(err);
