@@ -1834,6 +1834,8 @@
         <div class="data-diagnostic-row"><span>参照切れ：画像IDなし</span><strong id="stampSafetyMissingImage">—</strong></div>
         <div id="stampSafetyNote" class="data-diagnostic-summary"></div>
       </div>
+      <button id="prepareDiaryImageSplitBtn" type="button" class="secondary full" style="margin-top:10px">日記画像の分離準備（安全コピー）</button>
+      <div id="prepareDiaryImageSplitStatus" class="backup-note">日記画像を別領域へコピーして一致検証します。元画像は削除・変更しません。実際の軽量化は次の段階で行います。</div>
       <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
       <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
@@ -1873,7 +1875,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.03 diary cloud full verification</div>
+    <div class="version">Stamp Card v1.10.04 diary cloud full verification</div>
   </div>
 </div>
 
@@ -5442,7 +5444,7 @@
     finally{button.disabled=false;}
   }
 
-  // v1.10.03: 日記画像のクラウド実体を全件、GETのみで照合。stateを書き換えない。
+  // v1.10.04: 日記画像のクラウド実体を全件、GETのみで照合。stateを書き換えない。
   async function verifyAllDiaryCloudImages(){
     const button=$('diaryCloudVerifyAllBtn');
     const sampleButton=$('diaryCloudVerifyBtn');
@@ -5683,6 +5685,48 @@
   $("dataDiagnosticBtn").addEventListener("click",renderDataDiagnostic);
   $("diaryCloudVerifyBtn").addEventListener("click",verifyDiaryCloudSamples);
   $("diaryCloudVerifyAllBtn").addEventListener("click",verifyAllDiaryCloudImages);
+  // v1.10.04: 画像分離前の準備。元stateを維持したまま同じIndexedDBの別キーへ複製し、全内容を照合。
+  // 既存の読み込み/保存/クラウド同期処理には触れない。
+  const DIARY_SHADOW_KEY="diary-images-shadow-v1";
+  async function copyDiaryImagesForSplitPreflight(){
+    const snapshot=structuredClone(state.diaryImages || {});
+    const db=await openDB();
+    try{
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,"readwrite");
+        tx.objectStore(STORE).put(snapshot,DIARY_SHADOW_KEY);
+        tx.oncomplete=resolve;
+        tx.onerror=()=>reject(tx.error || new Error("安全コピーに失敗"));
+        tx.onabort=()=>reject(tx.error || new Error("安全コピーが中断"));
+      });
+      const copied=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,"readonly");
+        const request=tx.objectStore(STORE).get(DIARY_SHADOW_KEY);
+        request.onsuccess=()=>resolve(request.result);
+        request.onerror=()=>reject(request.error || new Error("コピーの読み取りに失敗"));
+      });
+      const before=JSON.stringify(snapshot);
+      const after=JSON.stringify(copied);
+      if(before!==after) throw new Error("コピー内容が一致しません。元データは変更していません。");
+      const count=Object.values(snapshot).reduce((n,arr)=>n+(Array.isArray(arr)?arr.length:0),0);
+      return count;
+    } finally { db.close(); }
+  }
+  $("prepareDiaryImageSplitBtn").addEventListener("click",async()=>{
+    const btn=$("prepareDiaryImageSplitBtn");
+    const status=$("prepareDiaryImageSplitStatus");
+    if(!confirm("日記画像を別領域に安全コピーして照合します。元の画像と履歴はそのまま残します。\n\n一時的に端末の保存容量が増えます。先にJSONバックアップを保存してから実行してください。"))return;
+    btn.disabled=true;
+    status.textContent="日記画像をコピーして照合中…";
+    try{
+      const count=await copyDiaryImagesForSplitPreflight();
+      status.textContent=`準備完了：日記画像${count}枚の別領域コピーが全件一致しました。元データはそのまま残っています。次の段階で保存構造の切り替えを検討できます。`;
+    }catch(err){
+      console.error(err);
+      status.textContent="コピー検証に失敗しました："+(err?.message||String(err));
+    }finally{btn.disabled=false;}
+  });
+
   $("compactStampImagesBtn").addEventListener("click",async()=>{
     const btn=$("compactStampImagesBtn");
     const status=$("compactStampImagesStatus");
