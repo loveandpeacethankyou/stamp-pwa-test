@@ -1840,6 +1840,8 @@
       <div id="activateDiarySplitStatus" class="backup-note">安全コピー51枚を利用し、通常のstate保存から日記画像本体を分離します。画像は端末内に残り、総使用容量は大きく減りません。先にJSONバックアップを保存してください。</div>
       <button id="verifyDiarySplitBtn" type="button" class="secondary full" style="margin-top:10px">日記画像の分離状態を確認（読み取り専用）</button>
       <div id="verifyDiarySplitStatus" class="backup-note" aria-live="polite">未検査。保存済みデータと別領域の画像を照合します。</div>
+      <button id="viewSaveTimingBtn" type="button" class="secondary full" style="margin-top:10px">保存速度を確認（読み取り専用）</button>
+      <div id="viewSaveTimingStatus" class="backup-note" aria-live="polite">この画面を開いてからスタンプなどを操作し、通常保存した後に確認してください。データは変更しません。</div>
       <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
       <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
@@ -1879,7 +1881,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.06 diary split verification</div>
+    <div class="version">Stamp Card v1.10.07 save timing diagnostic</div>
   </div>
 </div>
 
@@ -2238,7 +2240,10 @@
     }
     return {value:hasRefs?{...raw,diaryImages}:raw,hasRefs};
   }
+  // v1.10.07: 通常の保存所要時間だけをメモリ内に記録する。保存形式には影響しない。
+  const localSaveTimes=[];
   async function writeLocalState(value,packed){
+    const saveStartedAt=performance.now();
     const db=await openDB();
     try{
       const content=packed?packLocalStampImages(value).stored:value;
@@ -2255,6 +2260,8 @@
         tx.onabort=()=>reject(tx.error||new Error("保存が中断されました"));
       });
       if(diarySplitActive)lastDiaryPayload=nextPayload;
+      localSaveTimes.push({ms:performance.now()-saveStartedAt,shadowUpdated:updateShadow});
+      if(localSaveTimes.length>20)localSaveTimes.shift();
     }finally{db.close();}
   }
   async function loadState(){
@@ -5885,6 +5892,20 @@
       console.error(err);
       status.textContent="検証失敗："+(err?.message||String(err))+"。データを変更していません。";
     }finally{btn.disabled=false;}
+  });
+
+  // v1.10.07: 計測結果の表示のみ。追加保存やクラウド通信は行わない。
+  $("viewSaveTimingBtn").addEventListener("click",()=>{
+    const status=$("viewSaveTimingStatus");
+    if(!localSaveTimes.length){
+      status.textContent="このページでの保存記録はまだありません。スタンプなどを1回操作した後、もう一度確認してください。";
+      return;
+    }
+    const ms=localSaveTimes.map(x=>x.ms).sort((a,b)=>a-b);
+    const median=ms.length%2 ? ms[(ms.length-1)/2] : (ms[ms.length/2-1]+ms[ms.length/2])/2;
+    const latest=localSaveTimes[localSaveTimes.length-1];
+    const shadowWrites=localSaveTimes.filter(x=>x.shadowUpdated).length;
+    status.textContent=`直近${ms.length}回の通常保存：中央値${median.toFixed(0)}ms／最短${ms[0].toFixed(0)}ms／最長${ms[ms.length-1].toFixed(0)}ms。最後の保存${latest.ms.toFixed(0)}ms。日記画像別領域の書き直し${shadowWrites}回。ページを再読み込みすると計測記録はリセットされます。画像・保存データは変更していません。`;
   });
 
   $("compactStampImagesBtn").addEventListener("click",async()=>{
