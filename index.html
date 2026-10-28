@@ -1797,6 +1797,12 @@
         <div class="data-diagnostic-row"><span>IndexedDB保存データ（概算）</span><strong id="dataDiagnosticStored">—</strong></div>
         <div class="data-diagnostic-row"><span>復元後との差（概算）</span><strong id="dataDiagnosticSaved">—</strong></div>
         <div class="data-diagnostic-row"><span>日記画像</span><strong id="dataDiagnosticDiary">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像のユニーク数</span><strong id="diaryUniqueCount">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像の重複数</span><strong id="diaryDuplicateCount">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像の重複容量</span><strong id="diaryDuplicateBytes">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像の最大サイズ</span><strong id="diaryLargestBytes">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像の1枚平均</span><strong id="diaryAverageBytes">—</strong></div>
+        <div id="diaryDiagnosticNote" class="data-diagnostic-summary"></div>
         <div class="data-diagnostic-row"><span>ARCHIVE画像</span><strong id="dataDiagnosticArchive">—</strong></div>
         <div class="data-diagnostic-row"><span>積み画像</span><strong id="dataDiagnosticStock">—</strong></div>
         <div class="data-diagnostic-row"><span>その他</span><strong id="dataDiagnosticOther">—</strong></div>
@@ -1858,7 +1864,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.99 stored size diagnostic</div>
+    <div class="version">Stamp Card v1.10.00 diary image diagnostic</div>
   </div>
 </div>
 
@@ -5345,6 +5351,25 @@
     return {totalBytes,diaryBytes,diaryCount,archiveBytes,archiveCount,stockBytes,stockCount,stampBytes,stampCount,otherBytes};
   }
 
+  // v1.10.00: 日記画像のBase64を読み取り専用で調査。保存やstate変更はしない。
+  function collectDiaryImageDiagnostic(){
+    const unique=new Set();
+    let count=0, duplicateCount=0, duplicateBytes=0, bytes=0, largest=0, missing=0;
+    for(const images of Object.values(state?.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        const data=image?.data;
+        if(typeof data!=="string" || !data){ missing++; continue; }
+        const n=diagnosticStringBytes(data);
+        count++; bytes+=n; largest=Math.max(largest,n);
+        if(unique.has(data)){ duplicateCount++; duplicateBytes+=n; }
+        else unique.add(data);
+      }
+    }
+    return {count,uniqueCount:unique.size,duplicateCount,duplicateBytes,largest,
+      average:count?bytes/count:0,missing};
+  }
+
   // 読み取り専用。スタンプ設定内のBase64文字列を完全一致で比較する。
   // 完了履歴の画像ID参照は画像本体の複製としてカウントしない。
   function collectStampDuplicateDiagnostic(){
@@ -5474,6 +5499,16 @@
         $("dataDiagnosticSaved").textContent=storedBytes===null?"—":diagnosticFormatBytes(Math.max(0,d.totalBytes-storedBytes));
         $("dataDiagnosticTotal").textContent=diagnosticFormatBytes(d.totalBytes);
         $("dataDiagnosticDiary").textContent=`${diagnosticFormatBytes(d.diaryBytes)}（${d.diaryCount}枚）`;
+        const diary=collectDiaryImageDiagnostic();
+        $("diaryUniqueCount").textContent=`${diary.uniqueCount}枚`;
+        $("diaryDuplicateCount").textContent=`${diary.duplicateCount}枚`;
+        $("diaryDuplicateBytes").textContent=diagnosticFormatBytes(diary.duplicateBytes);
+        $("diaryLargestBytes").textContent=diagnosticFormatBytes(diary.largest);
+        $("diaryAverageBytes").textContent=diagnosticFormatBytes(diary.average);
+        $("diaryDiagnosticNote").textContent=
+          `日記のBase64画像を完全一致で比較（読み取り専用）。`+
+          (diary.missing?` データ未保持の画像${diary.missing}枚は対象外です。`:"")+
+          ` 画像・日記・保存形式・クラウド同期は変更していません。`;
         $("dataDiagnosticArchive").textContent=`${diagnosticFormatBytes(d.archiveBytes)}（${d.archiveCount}枚）`;
         $("dataDiagnosticStock").textContent=`${diagnosticFormatBytes(d.stockBytes)}（${d.stockCount}枚）`;
         $("dataDiagnosticOther").textContent=diagnosticFormatBytes(d.otherBytes);
