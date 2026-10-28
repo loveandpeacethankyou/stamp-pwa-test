@@ -1842,6 +1842,8 @@
       <div id="verifyDiarySplitStatus" class="backup-note" aria-live="polite">未検査。保存済みデータと別領域の画像を照合します。</div>
       <button id="viewSaveTimingBtn" type="button" class="secondary full" style="margin-top:10px">保存速度を確認（読み取り専用）</button>
       <div id="viewSaveTimingStatus" class="backup-note" aria-live="polite">この画面を開いてからスタンプなどを操作し、通常保存した後に確認してください。データは変更しません。</div>
+      <button id="viewHomeRenderBtn" type="button" class="secondary full" style="margin-top:10px">ホーム描画速度を確認（読み取り専用）</button>
+      <div id="viewHomeRenderStatus" class="backup-note" aria-live="polite">ホーム画面を何度か表示した後に確認してください。計測結果はページを閉じると消えます。</div>
       <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
       <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
@@ -1881,7 +1883,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.07 save timing diagnostic</div>
+    <div class="version">Stamp Card v1.10.08 home render timing diagnostic</div>
   </div>
 </div>
 
@@ -3081,7 +3083,10 @@
     }
   }
 
+  // v1.10.08: 描画時間の計測のみ。stateや保存構造には触れない。
+  const homeRenderTimes=[];
   function renderHome(){
+    const homeRenderStartedAt=performance.now();
     const f = formatHomeDate(selectedDate);
     const selectedDay = parseDate(selectedDate);
     const isToday = selectedDate===todayStr();
@@ -3185,6 +3190,8 @@
     renderStampAreaBackground();
     renderHomeCompletedWants();
     renderDiaryImages();
+    homeRenderTimes.push(performance.now()-homeRenderStartedAt);
+    if(homeRenderTimes.length>20)homeRenderTimes.shift();
   }
 
   function enterReorderMode(){
@@ -5895,6 +5902,15 @@
   });
 
   // v1.10.07: 計測結果の表示のみ。追加保存やクラウド通信は行わない。
+  $("viewHomeRenderBtn").addEventListener("click",()=>{
+    const status=$("viewHomeRenderStatus");
+    if(!homeRenderTimes.length){status.textContent="ホーム画面の描画記録がありません。『今日』タブを開いてから再確認してください。";return;}
+    const ms=[...homeRenderTimes].sort((a,b)=>a-b);
+    const median=ms.length%2 ? ms[(ms.length-1)/2] : (ms[ms.length/2-1]+ms[ms.length/2])/2;
+    const total=ms.reduce((a,b)=>a+b,0);
+    status.textContent=`直近${ms.length}回のホーム描画：中央値${median.toFixed(1)}ms／平均${(total/ms.length).toFixed(1)}ms／最短${ms[0].toFixed(1)}ms／最長${ms[ms.length-1].toFixed(1)}ms。最後${homeRenderTimes[homeRenderTimes.length-1].toFixed(1)}ms。同期通信や画像の非同期読み込み時間は含みません。データは変更していません。`;
+  });
+
   $("viewSaveTimingBtn").addEventListener("click",()=>{
     const status=$("viewSaveTimingStatus");
     if(!localSaveTimes.length){
