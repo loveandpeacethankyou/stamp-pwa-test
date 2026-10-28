@@ -1838,6 +1838,8 @@
       <div id="prepareDiaryImageSplitStatus" class="backup-note">日記画像を別領域へコピーして一致検証します。元画像は削除・変更しません。実際の軽量化は次の段階で行います。</div>
       <button id="activateDiarySplitBtn" type="button" class="secondary full" style="margin-top:10px">日記画像を別領域へ分離（保存高速化）</button>
       <div id="activateDiarySplitStatus" class="backup-note">安全コピー51枚を利用し、通常のstate保存から日記画像本体を分離します。画像は端末内に残り、総使用容量は大きく減りません。先にJSONバックアップを保存してください。</div>
+      <button id="verifyDiarySplitBtn" type="button" class="secondary full" style="margin-top:10px">日記画像の分離状態を確認（読み取り専用）</button>
+      <div id="verifyDiarySplitStatus" class="backup-note" aria-live="polite">未検査。保存済みデータと別領域の画像を照合します。</div>
       <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
       <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
@@ -1877,7 +1879,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.05 diary local split</div>
+    <div class="version">Stamp Card v1.10.06 diary split verification</div>
   </div>
 </div>
 
@@ -5839,6 +5841,50 @@
       status.textContent="分離完了：日記画像を通常のstate保存から外しました。画像はIndexedDB内の別領域に保持され、表示・同期・JSONバックアップでは従来どおり復元されます。総容量が23MB減る方式ではありません。";
     }catch(err){console.error(err);status.textContent="切り替えできませんでした："+(err?.message||String(err));}
     finally{btn.disabled=false;}
+  });
+
+  // v1.10.06: IndexedDBの保存形と別領域を読み取り専用で全件照合。
+  $("verifyDiarySplitBtn").addEventListener("click",async()=>{
+    const btn=$("verifyDiarySplitBtn"), status=$("verifyDiarySplitStatus");
+    btn.disabled=true; status.textContent="保存データと日記画像の別領域を照合中…";
+    try{
+      const db=await openDB();
+      let raw,shadow;
+      try{
+        ({raw,shadow}=await new Promise((resolve,reject)=>{
+          const tx=db.transaction(STORE,"readonly"), store=tx.objectStore(STORE);
+          const stateReq=store.get(STATE_KEY),shadowReq=store.get(DIARY_SHADOW_KEY);
+          tx.oncomplete=()=>resolve({raw:stateReq.result,shadow:shadowReq.result});
+          tx.onerror=()=>reject(tx.error || new Error("保存領域の読み取り失敗"));
+          tx.onabort=()=>reject(tx.error || new Error("検証が中断されました"));
+        }));
+      }finally{db.close();}
+      if(!raw||!raw.diaryImages)throw new Error("保存済みstateが見つかりません");
+      let refs=0, inline=0, missing=0;
+      for(const images of Object.values(raw.diaryImages||{})){
+        if(!Array.isArray(images))continue;
+        for(const im of images){
+          if(im?.[DIARY_LOCAL_REF])refs++;
+          else if(typeof im?.data==="string" && im.data.startsWith("data:image/"))inline++;
+          else missing++;
+        }
+      }
+      if(!refs){
+        status.textContent=`未分離：保存済みstateに参照形式の画像がありません（Base64直保存${inline}枚）。データは変更していません。`;
+        return;
+      }
+      const restored=restoreDiaryLocal(restoreLocalStampImages(raw),shadow);
+      const expected=Object.values(state.diaryImages||{}).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);
+      if(!diaryImagesEquivalent(restored.value.diaryImages,state.diaryImages)){
+        throw new Error("保存データから復元した画像が画面の画像と一致しません。新規保存は避けてください");
+      }
+      const bytes=diagnosticStringBytes(JSON.stringify(raw));
+      const shadowBytes=shadow===undefined?0:diagnosticStringBytes(JSON.stringify(shadow));
+      status.textContent=`検証成功：分離参照${refs}枚／画面の日記画像${expected}枚、全件一致。直保存${inline}枚、未分類${missing}枚。state本体${diagnosticFormatBytes(bytes)}、別領域${diagnosticFormatBytes(shadowBytes)}（いずれも概算）。画像・保存データは変更していません。`;
+    }catch(err){
+      console.error(err);
+      status.textContent="検証失敗："+(err?.message||String(err))+"。データを変更していません。";
+    }finally{btn.disabled=false;}
   });
 
   $("compactStampImagesBtn").addEventListener("click",async()=>{
