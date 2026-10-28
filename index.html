@@ -1810,6 +1810,8 @@
         <div id="diaryCloudNote" class="data-diagnostic-summary"></div>
         <button id="diaryCloudVerifyBtn" type="button" class="secondary full" style="margin:10px 0">クラウド画像を5枚だけ照合する（読み取り専用）</button>
         <div id="diaryCloudVerifyStatus" class="data-diagnostic-summary" aria-live="polite">未実行。Storage上の画像実体はまだ確認していません。</div>
+        <button id="diaryCloudVerifyAllBtn" type="button" class="secondary full" style="margin:10px 0">日記画像を全件照合する（読み取り専用）</button>
+        <div id="diaryCloudVerifyAllStatus" class="data-diagnostic-summary" aria-live="polite">未実行。全件照合は画像を削除・変更しません。</div>
         <div class="data-diagnostic-row"><span>ARCHIVE画像</span><strong id="dataDiagnosticArchive">—</strong></div>
         <div class="data-diagnostic-row"><span>積み画像</span><strong id="dataDiagnosticStock">—</strong></div>
         <div class="data-diagnostic-row"><span>その他</span><strong id="dataDiagnosticOther">—</strong></div>
@@ -1871,7 +1873,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.02 diary cloud sample verification</div>
+    <div class="version">Stamp Card v1.10.03 diary cloud full verification</div>
   </div>
 </div>
 
@@ -5440,6 +5442,46 @@
     finally{button.disabled=false;}
   }
 
+  // v1.10.03: 日記画像のクラウド実体を全件、GETのみで照合。stateを書き換えない。
+  async function verifyAllDiaryCloudImages(){
+    const button=$('diaryCloudVerifyAllBtn');
+    const sampleButton=$('diaryCloudVerifyBtn');
+    const status=$('diaryCloudVerifyAllStatus');
+    if(!button || !status || button.disabled || sampleButton?.disabled) return;
+    button.disabled=true;
+    if(sampleButton) sampleButton.disabled=true;
+    try{
+      const all=[];
+      let missing=0;
+      for(const images of Object.values(state?.diaryImages || {})){
+        if(!Array.isArray(images)) continue;
+        for(const image of images){
+          if(typeof image?.cloudPath==='string' && image.cloudPath.trim() && typeof image.data==='string' && image.data.includes(',')) all.push(image);
+          else missing++;
+        }
+      }
+      if(!all.length){status.textContent='照合できる日記画像がありません。画像は変更していません。';return;}
+      status.textContent='クラウドの認証を確認中…';
+      const session=await refreshCloudSessionIfNeeded();
+      if(!session){status.textContent='クラウドにログインしてから試してください。画像は変更していません。';return;}
+      let matched=0,unmatched=0,failed=0;
+      for(let i=0;i<all.length;i++){
+        status.textContent=`全件照合中 ${i+1}/${all.length}枚：一致${matched}枚／不一致${unmatched}枚／取得失敗${failed}枚`;
+        try{
+          const remote=await downloadStorageImageAsDataUrl(session,all[i].cloudPath);
+          const localPart=all[i].data.split(',')[1];
+          const remotePart=remote.split(',')[1];
+          if(localPart && localPart===remotePart) matched++;
+          else unmatched++;
+        }catch(e){failed++;}
+      }
+      status.textContent=`全件照合結果：一致 ${matched}枚／不一致 ${unmatched}枚／取得失敗 ${failed}枚／照合対象外 ${missing}枚（合計${all.length+missing}枚）。`+
+        (unmatched||failed||missing?' 全件の一致が確認できないため、画像の分離はまだ行いません。':' 端末内画像とクラウド上の内容が全件一致しました。')+
+        ' 画像・保存データは変更していません。';
+    }catch(e){status.textContent='照合エラー：'+(e?.message||String(e))+'（画像変更なし）';}
+    finally{button.disabled=false;if(sampleButton) sampleButton.disabled=false;}
+  }
+
   // 読み取り専用。スタンプ設定内のBase64文字列を完全一致で比較する。
   // 完了履歴の画像ID参照は画像本体の複製としてカウントしない。
   function collectStampDuplicateDiagnostic(){
@@ -5640,6 +5682,7 @@
 
   $("dataDiagnosticBtn").addEventListener("click",renderDataDiagnostic);
   $("diaryCloudVerifyBtn").addEventListener("click",verifyDiaryCloudSamples);
+  $("diaryCloudVerifyAllBtn").addEventListener("click",verifyAllDiaryCloudImages);
   $("compactStampImagesBtn").addEventListener("click",async()=>{
     const btn=$("compactStampImagesBtn");
     const status=$("compactStampImagesStatus");
