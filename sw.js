@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-10-04-diary-shadow-preflight";
+const CACHE = "stamp-card-v1-10-05-diary-local-split";
 const CORE = [
   "./",
   "./index.html",

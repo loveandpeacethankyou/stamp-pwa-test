@@ -1836,6 +1836,8 @@
       </div>
       <button id="prepareDiaryImageSplitBtn" type="button" class="secondary full" style="margin-top:10px">日記画像の分離準備（安全コピー）</button>
       <div id="prepareDiaryImageSplitStatus" class="backup-note">日記画像を別領域へコピーして一致検証します。元画像は削除・変更しません。実際の軽量化は次の段階で行います。</div>
+      <button id="activateDiarySplitBtn" type="button" class="secondary full" style="margin-top:10px">日記画像を別領域へ分離（保存高速化）</button>
+      <div id="activateDiarySplitStatus" class="backup-note">安全コピー51枚を利用し、通常のstate保存から日記画像本体を分離します。画像は端末内に残り、総使用容量は大きく減りません。先にJSONバックアップを保存してください。</div>
       <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
       <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
@@ -1875,7 +1877,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.10.04 diary cloud full verification</div>
+    <div class="version">Stamp Card v1.10.05 diary local split</div>
   </div>
 </div>
 
@@ -2167,27 +2169,108 @@
     });
     return found ? {...saved,styles} : saved;
   }
+  // v1.10.05: 保存時のstate書き直しを軽量化。画像本体は同じDBの別キーに保持。
+  // 全キーの更新は同一トランザクションで行い、片方だけ更新される事態を防止する。
+  const DIARY_LOCAL_REF="__stampCardDiaryImageSplitV1";
+  let diarySplitActive=false;
+  let lastDiaryPayload=null;
+  function diaryPayload(source){
+    const out={};
+    for(const [date,images] of Object.entries(source||{})){
+      if(!Array.isArray(images)) continue;
+      out[date]=images.map(im=>im && typeof im==="object" ? {id:im.id,data:im.data} : im);
+    }
+    return out;
+  }
+  function diaryPayloadEqual(a,b){
+    if(!a||!b) return false;
+    const ak=Object.keys(a),bk=Object.keys(b);
+    if(ak.length!==bk.length) return false;
+    for(const k of ak){
+      const x=a[k],y=b[k];
+      if(!Array.isArray(y)||x.length!==y.length)return false;
+      for(let i=0;i<x.length;i++) if(x[i]?.id!==y[i]?.id||x[i]?.data!==y[i]?.data)return false;
+    }
+    return true;
+  }
+  function diaryImagesEquivalent(a,b){
+    const ak=Object.keys(a||{}),bk=Object.keys(b||{});
+    if(ak.length!==bk.length)return false;
+    for(const date of ak){
+      const x=a[date],y=b?.[date];
+      if(!Array.isArray(x)||!Array.isArray(y)||x.length!==y.length)return false;
+      for(let i=0;i<x.length;i++){
+        const left=x[i]||{},right=y[i]||{};
+        const keys=Object.keys(left);
+        if(keys.length!==Object.keys(right).length||keys.some(k=>left[k]!==right[k]))return false;
+      }
+    }
+    return true;
+  }
+  function packDiaryLocal(source){
+    const diaryImages={};
+    for(const [date,images] of Object.entries(source.diaryImages||{})){
+      diaryImages[date]=Array.isArray(images)? images.map(im=>{
+        if(!im||typeof im.data!=="string")return im;
+        const {data,...rest}=im;
+        return {...rest,[DIARY_LOCAL_REF]:true};
+      }):images;
+    }
+    return {...source,diaryImages};
+  }
+  function restoreDiaryLocal(raw,shadow){
+    let hasRefs=false;
+    if(!raw||!raw.diaryImages)return {value:raw,hasRefs:false};
+    const diaryImages={};
+    for(const [date,images] of Object.entries(raw.diaryImages)){
+      diaryImages[date]=Array.isArray(images)?images.map((im,i)=>{
+        if(!im?.[DIARY_LOCAL_REF])return im;
+        hasRefs=true;
+        const backed=shadow?.[date]?.[i];
+        if(backed?.id!==im.id||typeof backed?.data!=="string"||!backed.data.startsWith("data:image/")){
+          throw new Error("日記画像の別領域参照が一致しません。保存を中止しました。");
+        }
+        const {[DIARY_LOCAL_REF]:marker,...rest}=im;
+        return {...rest,data:backed.data};
+      }):images;
+    }
+    return {value:hasRefs?{...raw,diaryImages}:raw,hasRefs};
+  }
   async function writeLocalState(value,packed){
     const db=await openDB();
-    return new Promise((resolve,reject)=>{
-      const tx=db.transaction(STORE,"readwrite");
-      tx.objectStore(STORE).put(packed ? packLocalStampImages(value).stored : value,STATE_KEY);
-      tx.oncomplete=()=>resolve();
-      tx.onerror=()=>reject(tx.error);
-      tx.onabort=()=>reject(tx.error||new Error("保存が中断されました"));
-    });
+    try{
+      const content=packed?packLocalStampImages(value).stored:value;
+      const storeValue=diarySplitActive?packDiaryLocal(content):content;
+      const nextPayload=diarySplitActive?diaryPayload(value.diaryImages):null;
+      const updateShadow=diarySplitActive&&!diaryPayloadEqual(nextPayload,lastDiaryPayload);
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,"readwrite");
+        const store=tx.objectStore(STORE);
+        if(updateShadow)store.put(nextPayload,DIARY_SHADOW_KEY);
+        store.put(storeValue,STATE_KEY);
+        tx.oncomplete=resolve;
+        tx.onerror=()=>reject(tx.error||new Error("保存に失敗しました"));
+        tx.onabort=()=>reject(tx.error||new Error("保存が中断されました"));
+      });
+      if(diarySplitActive)lastDiaryPayload=nextPayload;
+    }finally{db.close();}
   }
   async function loadState(){
-    const db = await openDB();
-    return new Promise((resolve,reject)=>{
-      const tx = db.transaction(STORE,"readonly");
-      const req = tx.objectStore(STORE).get(STATE_KEY);
-      req.onsuccess = () => {
-        try{resolve(normalizeState(restoreLocalStampImages(req.result)));}
-        catch(err){reject(err);}
-      };
-      req.onerror = () => reject(req.error);
-    });
+    const db=await openDB();
+    try{
+      const {raw,shadow}=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,"readonly");
+        const store=tx.objectStore(STORE);
+        const r=store.get(STATE_KEY), sh=store.get(DIARY_SHADOW_KEY);
+        tx.oncomplete=()=>resolve({raw:r.result,shadow:sh.result});
+        tx.onerror=()=>reject(tx.error||new Error("データ読み込み失敗"));
+        tx.onabort=()=>reject(tx.error||new Error("データ読み込み中断"));
+      });
+      const restored=restoreDiaryLocal(restoreLocalStampImages(raw),shadow);
+      diarySplitActive=restored.hasRefs;
+      lastDiaryPayload=diarySplitActive?diaryPayload(restored.value.diaryImages):null;
+      return normalizeState(restored.value);
+    }finally{db.close();}
   }
 
   async function saveState(options={}){
@@ -5725,6 +5808,37 @@
       console.error(err);
       status.textContent="コピー検証に失敗しました："+(err?.message||String(err));
     }finally{btn.disabled=false;}
+  });
+
+  $("activateDiarySplitBtn").addEventListener("click",async()=>{
+    const btn=$("activateDiarySplitBtn"),status=$("activateDiarySplitStatus");
+    if(diarySplitActive){status.textContent="すでに分離済みです。日記画像は別領域に保持されています。";return;}
+    if(!confirm("日記画像の別領域保存へ切り替えます。事前にJSONバックアップをダウンロードしましたか？\n\n端末内から画像を削除する操作ではありません。古いアプリ版へ戻さないでください。"))return;
+    btn.disabled=true;status.textContent="コピーと復元を検証中…";
+    try{
+      const db=await openDB();
+      let shadow;
+      try{shadow=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,"readonly"),req=tx.objectStore(STORE).get(DIARY_SHADOW_KEY);
+        req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+      });}finally{db.close();}
+      const original=diaryPayload(state.diaryImages);
+      if(JSON.stringify(original)!==JSON.stringify(diaryPayload(shadow))){
+        throw new Error("安全コピーが現在の日記画像と一致しません。先に『分離準備（安全コピー）』を再実行してください。");
+      }
+      const trial=restoreDiaryLocal(packDiaryLocal(state),shadow);
+      if(!trial.hasRefs||!diaryImagesEquivalent(trial.value.diaryImages,state.diaryImages)){
+        throw new Error("復元検証が一致しません。保存処理は行っていません。");
+      }
+      diarySplitActive=true;
+      lastDiaryPayload=original;
+      try{await writeLocalState(state,localStorage.getItem(LOCAL_STAMP_COMPACT_KEY)==="1");}
+      catch(err){diarySplitActive=false;lastDiaryPayload=null;throw err;}
+      const checked=await loadState();
+      if(!diaryImagesEquivalent(checked.diaryImages,state.diaryImages))throw new Error("再読み込み検証に失敗しました。バックアップを保管してください。");
+      status.textContent="分離完了：日記画像を通常のstate保存から外しました。画像はIndexedDB内の別領域に保持され、表示・同期・JSONバックアップでは従来どおり復元されます。総容量が23MB減る方式ではありません。";
+    }catch(err){console.error(err);status.textContent="切り替えできませんでした："+(err?.message||String(err));}
+    finally{btn.disabled=false;}
   });
 
   $("compactStampImagesBtn").addEventListener("click",async()=>{
