@@ -1131,6 +1131,34 @@
       font-size:11px;
       line-height:1.5;
     }
+    .data-diagnostic-result{
+      margin-top:10px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(255,255,255,.62);
+      overflow:hidden;
+    }
+    .data-diagnostic-result[hidden]{display:none!important}
+    .data-diagnostic-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      min-height:38px;
+      padding:8px 11px;
+      border-bottom:1px solid rgba(221,214,203,.72);
+      font-size:12px;
+    }
+    .data-diagnostic-row:last-of-type{border-bottom:0}
+    .data-diagnostic-row span{color:var(--muted);min-width:0}
+    .data-diagnostic-row strong{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .data-diagnostic-summary{
+      padding:9px 11px 10px;
+      background:rgba(236,230,220,.48);
+      color:var(--muted);
+      font-size:11px;
+      line-height:1.55;
+    }
     .cloud-section{
       margin-top:18px;
       padding-top:16px;
@@ -1761,6 +1789,20 @@
       <div class="backup-note">スタンプ・達成記録・メモ・日記・画像・やりたいこと・アーカイブをまとめて保存します。</div>
     </div>
 
+    <div class="backup-section">
+      <h3 class="backup-title">データ容量診断</h3>
+      <button id="dataDiagnosticBtn" type="button" class="secondary full">容量を計測する</button>
+      <div id="dataDiagnosticResult" class="data-diagnostic-result" hidden>
+        <div class="data-diagnostic-row"><span>ローカルデータ全体</span><strong id="dataDiagnosticTotal">—</strong></div>
+        <div class="data-diagnostic-row"><span>日記画像</span><strong id="dataDiagnosticDiary">—</strong></div>
+        <div class="data-diagnostic-row"><span>ARCHIVE画像</span><strong id="dataDiagnosticArchive">—</strong></div>
+        <div class="data-diagnostic-row"><span>積み画像</span><strong id="dataDiagnosticStock">—</strong></div>
+        <div class="data-diagnostic-row"><span>その他</span><strong id="dataDiagnosticOther">—</strong></div>
+        <div id="dataDiagnosticSummary" class="data-diagnostic-summary"></div>
+      </div>
+      <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
+    </div>
+
     <div class="cloud-section">
       <h3 class="backup-title">iPhone・Windows共有</h3>
       <div class="backup-note" style="margin:0 0 10px">ログイン中は、起動時と変更後に自動同期します。競合を検出した場合は自動上書きしません。</div>
@@ -1795,7 +1837,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.92 stock progress numbers</div>
+    <div class="version">Stamp Card v1.9.93 data diagnostic</div>
   </div>
 </div>
 
@@ -5171,6 +5213,108 @@
     closeOverlay("settingsOverlay");
     openQuestForm();
   };
+
+  function diagnosticStringBytes(value){
+    if(value == null) return 0;
+    try{ return new Blob([String(value)]).size; }
+    catch(_){ return new TextEncoder().encode(String(value)).length; }
+  }
+
+  function diagnosticFormatBytes(bytes){
+    const n=Math.max(0,Number(bytes)||0);
+    if(n < 1024) return `${Math.round(n)} B`;
+    if(n < 1024*1024) return `${(n/1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+    return `${(n/(1024*1024)).toFixed(n < 10*1024*1024 ? 2 : 1)} MB`;
+  }
+
+  function diagnosticImageBytes(image){
+    return image && typeof image.data==="string" ? diagnosticStringBytes(image.data) : 0;
+  }
+
+  function collectDataDiagnostic(){
+    const json=JSON.stringify(state || {});
+    const totalBytes=diagnosticStringBytes(json);
+
+    let diaryBytes=0, diaryCount=0;
+    for(const images of Object.values(state?.diaryImages || {})){
+      if(!Array.isArray(images)) continue;
+      for(const image of images){
+        diaryCount++;
+        diaryBytes += diagnosticImageBytes(image);
+      }
+    }
+
+    let archiveBytes=0, archiveCount=0;
+    for(const item of state?.archive?.items || []){
+      if(item?.image){
+        archiveCount++;
+        archiveBytes += diagnosticImageBytes(item.image);
+      }
+    }
+
+    let stockBytes=0, stockCount=0;
+    for(const item of state?.stock?.items || []){
+      if(item?.image){
+        stockCount++;
+        stockBytes += diagnosticImageBytes(item.image);
+      }
+    }
+
+    let stampBytes=0, stampCount=0;
+    for(const style of state?.styles || []){
+      if(Array.isArray(style?.images)){
+        for(const image of style.images){
+          stampCount++;
+          stampBytes += diagnosticImageBytes(image);
+        }
+      }else if(typeof style?.imageData==="string" && style.imageData){
+        stampCount++;
+        stampBytes += diagnosticStringBytes(style.imageData);
+      }
+    }
+
+    const knownImageBytes=diaryBytes+archiveBytes+stockBytes;
+    const otherBytes=Math.max(0,totalBytes-knownImageBytes);
+    return {totalBytes,diaryBytes,diaryCount,archiveBytes,archiveCount,stockBytes,stockCount,stampBytes,stampCount,otherBytes};
+  }
+
+  function renderDataDiagnostic(){
+    const btn=$("dataDiagnosticBtn");
+    const result=$("dataDiagnosticResult");
+    if(!btn || !result || !state) return;
+    btn.disabled=true;
+    btn.textContent="計測中…";
+    setTimeout(()=>{
+      try{
+        const d=collectDataDiagnostic();
+        $("dataDiagnosticTotal").textContent=diagnosticFormatBytes(d.totalBytes);
+        $("dataDiagnosticDiary").textContent=`${diagnosticFormatBytes(d.diaryBytes)}（${d.diaryCount}枚）`;
+        $("dataDiagnosticArchive").textContent=`${diagnosticFormatBytes(d.archiveBytes)}（${d.archiveCount}枚）`;
+        $("dataDiagnosticStock").textContent=`${diagnosticFormatBytes(d.stockBytes)}（${d.stockCount}枚）`;
+        $("dataDiagnosticOther").textContent=diagnosticFormatBytes(d.otherBytes);
+
+        const candidates=[
+          ["日記画像",d.diaryBytes],
+          ["ARCHIVE画像",d.archiveBytes],
+          ["積み画像",d.stockBytes],
+          ["その他",d.otherBytes]
+        ].sort((a,b)=>b[1]-a[1]);
+        const largest=candidates[0];
+        const imagePct=d.totalBytes ? Math.round(((d.diaryBytes+d.archiveBytes+d.stockBytes+d.stampBytes)/d.totalBytes)*100) : 0;
+        const stampText=d.stampCount ? ` その他にはスタンプ画像 ${diagnosticFormatBytes(d.stampBytes)}（${d.stampCount}枚）などが含まれます。` : "";
+        $("dataDiagnosticSummary").textContent=`最大は${largest[0]}（${diagnosticFormatBytes(largest[1])}）。端末内データのうち、確認できた画像データは約${Math.min(100,imagePct)}%。${stampText}`;
+        result.hidden=false;
+      }catch(err){
+        console.error(err);
+        alert("容量の計測に失敗しました。");
+      }finally{
+        btn.disabled=false;
+        btn.textContent="もう一度計測する";
+      }
+    },30);
+  }
+
+  $("dataDiagnosticBtn").addEventListener("click",renderDataDiagnostic);
 
   function backupFilename(){
     const d = new Date();
