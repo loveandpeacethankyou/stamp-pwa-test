@@ -1,4 +1,4 @@
-const CACHE = "stamp-card-v1-10-08-home-render-timing";
+const CACHE = "stamp-card-v1-10-09-cloud-timing";
 const CORE = [
   "./",
   "./index.html",

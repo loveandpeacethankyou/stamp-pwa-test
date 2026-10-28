@@ -1844,6 +1844,8 @@
       <div id="viewSaveTimingStatus" class="backup-note" aria-live="polite">この画面を開いてからスタンプなどを操作し、通常保存した後に確認してください。データは変更しません。</div>
       <button id="viewHomeRenderBtn" type="button" class="secondary full" style="margin-top:10px">ホーム描画速度を確認（読み取り専用）</button>
       <div id="viewHomeRenderStatus" class="backup-note" aria-live="polite">ホーム画面を何度か表示した後に確認してください。計測結果はページを閉じると消えます。</div>
+      <button id="viewCloudTimingBtn" type="button" class="secondary full" style="margin-top:10px">自動同期の処理時間を確認（読み取り専用）</button>
+      <div id="viewCloudTimingStatus" class="backup-note" aria-live="polite">このページで自動同期が発生した際に計測します。確認ボタンによる追加通信は行いません。</div>
       <button id="compactStampImagesBtn" type="button" class="secondary full" style="margin-top:10px">重複スタンプ画像を軽量化</button>
       <div id="compactStampImagesStatus" class="backup-note">この端末の保存形式のみ軽量化します。画像・履歴・Storage保存先は削除しません。操作前にJSONバックアップを保存してください。</div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
@@ -5901,6 +5903,27 @@
     }finally{btn.disabled=false;}
   });
 
+  // v1.10.09: 表示だけ。ボタンを押しても通信・保存はしない。
+  $("viewCloudTimingBtn").addEventListener("click",()=>{
+    const status=$("viewCloudTimingStatus");
+    if(!cloudTimingRecords.length){
+      status.textContent="このページでの自動同期通信記録はまだありません。ログイン中なら通常の操作後に確認してください。ボタン自体は通信しません。";
+      return;
+    }
+    const fmt=bytes=>bytes==null?"計測対象外":diagnosticFormatBytes(bytes);
+    const lines=["直近の同期通信（ページ再読み込みでリセット）:"];
+    for(const kind of ["取得","送信処理"]){
+      const rows=cloudTimingRecords.filter(x=>x.kind===kind);
+      if(!rows.length)continue;
+      const ms=rows.map(x=>x.ms).sort((a,b)=>a-b);
+      const mid=ms.length%2?ms[(ms.length-1)/2]:(ms[ms.length/2-1]+ms[ms.length/2])/2;
+      const latest=rows[rows.length-1];
+      lines.push(`${kind} ${rows.length}回：中央値${mid.toFixed(0)}ms／直近${latest.ms.toFixed(0)}ms／直近データ量${fmt(latest.bytes)}`);
+    }
+    lines.push("取得はレスポンスJSONのサイズ、送信処理は準備・通信を含む所要時間と送信JSONサイズです。画像取得通信や同期全体の所要時間は含みません。データは変更していません。");
+    status.textContent=lines.join(" ");
+  });
+
   // v1.10.07: 計測結果の表示のみ。追加保存やクラウド通信は行わない。
   $("viewHomeRenderBtn").addEventListener("click",()=>{
     const status=$("viewHomeRenderStatus");
@@ -6258,7 +6281,14 @@
       : `ログイン中：${session.email || "ユーザー"} ／ 自動同期ON`;
   }
 
+  // v1.10.09: 今回のページ内だけで同期処理を計測。データや同期条件は変更しない。
+  const cloudTimingRecords=[];
+  function recordCloudTiming(kind, ms, bytes){
+    cloudTimingRecords.push({kind, ms, bytes});
+    if(cloudTimingRecords.length>20)cloudTimingRecords.shift();
+  }
   async function fetchCloudRow(session, includeState=true){
+    const cloudReadStarted=performance.now();
     const select = includeState ? "state,updated_at" : "updated_at";
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/stamp_card_state?select=${select}&user_id=eq.${encodeURIComponent(session.user_id)}`,
@@ -6270,7 +6300,9 @@
       throw new Error(`Cloud read failed ${res.status}: ${text}`);
     }
 
-    const rows = await res.json();
+    const rowsText = await res.text();
+    const rows = JSON.parse(rowsText);
+    recordCloudTiming("取得", performance.now()-cloudReadStarted, new Blob([rowsText]).size);
     return rows[0] || null;
   }
 
@@ -6619,6 +6651,8 @@
     if(!meta.dirty || !meta.lastCloudUpdatedAt) return;
 
     autoCloudBusy = true;
+    const cloudPushStarted=performance.now();
+    let cloudPushBytes=null;
     try{
       updateCloudUI("自動同期中…");
 
@@ -6638,16 +6672,15 @@
         `?user_id=eq.${encodeURIComponent(session.user_id)}` +
         `&updated_at=eq.${encodeURIComponent(meta.lastCloudUpdatedAt)}`;
 
+      const cloudBody=JSON.stringify({state:prepared.cloudState,updated_at:newUpdatedAt});
+      cloudPushBytes=new Blob([cloudBody]).size;
       const res = await fetch(endpoint, {
         method:"PATCH",
         headers:cloudHeaders(session.access_token, {
           "Content-Type":"application/json",
           "Prefer":"return=representation"
         }),
-        body:JSON.stringify({
-          state:prepared.cloudState,
-          updated_at:newUpdatedAt
-        })
+        body:cloudBody
       });
 
       if(!res.ok){
@@ -6672,6 +6705,7 @@
           : "自動同期できませんでした。手動同期で詳細を確認できます"
       );
     }finally{
+      recordCloudTiming("送信処理",performance.now()-cloudPushStarted,cloudPushBytes);
       autoCloudBusy = false;
     }
   }
