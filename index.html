@@ -6735,6 +6735,21 @@
     autoCloudBusy = true;
     try{
       updateCloudUI("クラウド確認中…");
+      const meta = getCloudMeta(session.user_id);
+      // v1.10.10: 同期済み端末では更新日時だけ先に確認する。
+      // 変更があった場合と初回同期のみ、従来どおりstate全体を取得する。
+      if(meta.lastCloudUpdatedAt){
+        const cloudVersion = await fetchCloudRow(session, false);
+        if(cloudVersion && cloudVersion.updated_at === meta.lastCloudUpdatedAt){
+          if(meta.dirty){
+            // 従来同様、finallyでロックを外したあと送信する。
+            setTimeout(()=>autoCloudPush().catch(console.error), 0);
+          }else{
+            updateCloudUI("自動同期ON");
+          }
+          return;
+        }
+      }
       const row = await fetchCloudRow(session, true);
 
       if(!row?.state){
@@ -6742,7 +6757,6 @@
         return;
       }
 
-      const meta = getCloudMeta(session.user_id);
       const sameState = stateFingerprint(state) === stateFingerprint(row.state);
 
       // v1.9.8導入直後など、まだ同期基準を持っていない端末。
