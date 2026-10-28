@@ -1799,6 +1799,12 @@
         <div class="data-diagnostic-row"><span>積み画像</span><strong id="dataDiagnosticStock">—</strong></div>
         <div class="data-diagnostic-row"><span>その他</span><strong id="dataDiagnosticOther">—</strong></div>
         <div id="dataDiagnosticSummary" class="data-diagnostic-summary"></div>
+        <div class="data-diagnostic-row"><span>スタンプ画像（登録数）</span><strong id="stampDuplicateTotal">—</strong></div>
+        <div class="data-diagnostic-row"><span>ユニーク画像数</span><strong id="stampDuplicateUnique">—</strong></div>
+        <div class="data-diagnostic-row"><span>重複画像数</span><strong id="stampDuplicateCount">—</strong></div>
+        <div class="data-diagnostic-row"><span>重複分のデータ容量</span><strong id="stampDuplicateBytes">—</strong></div>
+        <div class="data-diagnostic-row"><span>重複除外後の画像容量</span><strong id="stampDuplicateNet">—</strong></div>
+        <div id="stampDuplicateNote" class="data-diagnostic-summary"></div>
       </div>
       <div class="backup-note">この端末のIndexedDBに保存されるstateの概算です。Supabase Storage側の使用量ではありません。</div>
     </div>
@@ -1837,7 +1843,7 @@
       <div id="googleCalendarStatus" class="cloud-status">未設定</div>
     </div>
 
-    <div class="version">Stamp Card v1.9.93 data diagnostic</div>
+    <div class="version">Stamp Card v1.9.94 stamp duplicate diagnostic</div>
   </div>
 </div>
 
@@ -5278,6 +5284,37 @@
     return {totalBytes,diaryBytes,diaryCount,archiveBytes,archiveCount,stockBytes,stockCount,stampBytes,stampCount,otherBytes};
   }
 
+  // 読み取り専用。スタンプ設定内のBase64文字列を完全一致で比較する。
+  // 完了履歴の画像ID参照は画像本体の複製としてカウントしない。
+  function collectStampDuplicateDiagnostic(){
+    const unique=new Map();
+    let total=0, duplicates=0, totalBytes=0, duplicateBytes=0;
+    let withoutData=0;
+    function visit(data){
+      if(typeof data!=="string" || !data){ withoutData++; return; }
+      total++;
+      const bytes=diagnosticStringBytes(data);
+      totalBytes+=bytes;
+      if(unique.has(data)){
+        duplicates++;
+        duplicateBytes+=bytes;
+      }else unique.set(data,bytes);
+    }
+    for(const style of state?.styles || []){
+      if(Array.isArray(style?.images)){
+        for(const image of style.images) visit(image?.data);
+      }else if(typeof style?.imageData==="string" && style.imageData){
+        visit(style.imageData);
+      }
+    }
+    const historicalImageFields=(state?.completions || []).filter(c=>
+      typeof c?.imageData==="string" && c.imageData ||
+      typeof c?.data==="string" && c.data
+    ).length;
+    return {total,uniqueCount:unique.size,duplicates,totalBytes,duplicateBytes,
+      uniqueBytes:totalBytes-duplicateBytes,withoutData,historicalImageFields};
+  }
+
   function renderDataDiagnostic(){
     const btn=$("dataDiagnosticBtn");
     const result=$("dataDiagnosticResult");
@@ -5303,6 +5340,17 @@
         const imagePct=d.totalBytes ? Math.round(((d.diaryBytes+d.archiveBytes+d.stockBytes+d.stampBytes)/d.totalBytes)*100) : 0;
         const stampText=d.stampCount ? ` その他にはスタンプ画像 ${diagnosticFormatBytes(d.stampBytes)}（${d.stampCount}枚）などが含まれます。` : "";
         $("dataDiagnosticSummary").textContent=`最大は${largest[0]}（${diagnosticFormatBytes(largest[1])}）。端末内データのうち、確認できた画像データは約${Math.min(100,imagePct)}%。${stampText}`;
+        const dup=collectStampDuplicateDiagnostic();
+        $("stampDuplicateTotal").textContent=`${dup.total}枚`;
+        $("stampDuplicateUnique").textContent=`${dup.uniqueCount}枚`;
+        $("stampDuplicateCount").textContent=`${dup.duplicates}枚`;
+        $("stampDuplicateBytes").textContent=diagnosticFormatBytes(dup.duplicateBytes);
+        $("stampDuplicateNet").textContent=diagnosticFormatBytes(dup.uniqueBytes);
+        $("stampDuplicateNote").textContent=
+          `スタンプ設定内のBase64画像を完全一致で比較。重複分の容量は同一画像を1件にまとめた場合の理論値で、実際には削除・変更していません。`+
+          ` 達成履歴${state.completions?.length || 0}件は通常画像IDで参照されています。`+
+          (dup.historicalImageFields ? ` ただし履歴${dup.historicalImageFields}件に画像文字列が見つかりました。` : "")+
+          (dup.withoutData ? ` 画像データ未保持の登録${dup.withoutData}件は比較対象外です。` : "");
         result.hidden=false;
       }catch(err){
         console.error(err);
